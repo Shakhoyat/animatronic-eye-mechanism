@@ -1,0 +1,17 @@
+# Python Dependencies for Animatronic Eye Tracker
+# Install with: pip install -r requirements.txt
+
+# Computer Vision
+opencv-python==4.8.1.78
+
+# Numerical Computing  
+numpy==1.24.3
+
+# Built-in libraries (no installation needed):
+# - socket (network communication)
+# - threading (concurrent processing)
+# - json (data serialization)
+# - time (timing functions)
+# - queue (thread-safe data structures)
+# - collections (specialized data structures)
+# - sys (system-specific functions)
