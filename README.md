@@ -1,255 +1,145 @@
-# 🎭 Animatronic Eye Tracking System
+# EYEMECH ε3.2 control code adapted for ESP32 with PCA9685 servo controller
+Based on Will Cogley's Eye Mechanism control code
 
-A complete eye tracking system that uses your PC webcam to control animatronic eye movements via ESP32 and servo motors. **Safety-first design** prevents hardware damage through conservative movement limits and emergency stop features.
+## Modes
 
-## 🚀 Quick Start Guide
+**Auto Mode**  
+![Auto Mode](assets/GIF_20250330_145529_110-ezgif.com-resize.gif)
 
-### ⚠️ SAFETY FIRST - READ THIS!
+**Manual Mode**  
+![Manual Mode](assets/GIF_20250330_145738_084-ezgif.com-resize.gif)
 
-**CRITICAL**: This system can damage your servos if not set up properly. Follow these safety steps:
+## Eyemech Setup
+[![EYEMECH ε3.2 Demo](https://img.youtube.com/vi/MeHLouL9ltw/0.jpg)](https://www.youtube.com/watch?v=MeHLouL9ltw "EYEMECH ε3.2 Demo - Click to Watch!")
 
-1. **Test each servo manually** before automation
-2. **Use external 5V power supply** for servos (2A minimum)
-3. **Keep emergency stop accessible** (spacebar in Python app)
-4. **Start with conservative servo limits** and increase gradually
+## Overview
 
-## 📦 What's Included
+EYEMECH ε3.2 is an adaptation of Will Cogley's Eye Mechanism control code for the ESP32 microcontroller with PCA9685 servo controller. This project brings animatronic eye movements to life using MicroPython, allowing for both automatic and manual control of eye position and blinking.
 
-```
-animatronic-eye-mechanism/
-├── esp32/
-│   └── animatronic_eye_controller.ino    # ESP32 Arduino code
-├── python/
-│   ├── eye_tracker.py                    # Main Python application
-│   └── requirements.txt                  # Python dependencies
-├── docs/
-│   └── [documentation files]
-└── README.md                             # This file
-```
+## Features
 
-## 🔧 Hardware Requirements
+- **Dual Control Modes**: Automatic random eye movement or manual joystick control
+- **Realistic Eye Mechanics**: Coordinated movement of eyelids with eye position
+- **Customizable**: Adjustable eye openness and movement limits
+- **Low Latency**: Smooth transitions between positions
+- **Easy Setup**: Complete step-by-step guide for hardware and software installation
 
-### ESP32 Setup
-- **ESP32 development board** (ESP32-WROOM-32 recommended)
-- **7 servo motors**:
-  - Eye mechanisms (0-3): Micro servos - **RANGE LIMITED**
-  - Base movement (4-6): Standard servos (SG90, MG90S)
-- **External 5V power supply** (2A minimum) - **REQUIRED**
+## Hardware Requirements
 
-### Wiring Guide
-```
-ESP32 Pin → Servo Function                → Safe Range
-Pin 2  → Eye Servo 0 (vertical)          → 60°-120° (CONSERVATIVE)
-Pin 4  → Eye Servo 1 (horizontal)        → 60°-120° (CONSERVATIVE)  
-Pin 5  → Eye Servo 2 (lid/mechanism)     → 70°-110° (VERY LIMITED)
-Pin 18 → Eye Servo 3 (secondary)         → 60°-120° (CONSERVATIVE)
-Pin 19 → Base Pan (left/right)           → 0°-180° (Full rotation)
-Pin 21 → Base Tilt (up/down)             → 0°-180° (Full rotation)
-Pin 22 → Base Roll (side tilt)           → 0°-180° (Full rotation)
-```
+- ESP32 WROOM Dev Module
+- PCA9685 16-Channel PWM Servo Driver
+- 6 Micro Servos:
+  - Left/Right movement (1)
+  - Up/Down movement (1)
+  - Eyelids (4 - Top Left, Bottom Left, Top Right, Bottom Right)
+- 1 PS4/PS5 Koystick module (for joystick control)
+- 1 Trim potentiometer (for eye openness)
+- Mode switch, Enable switch, and Blink button (Mode & Enable swichtes can be joined using a 2 way Switch)
+- 5V-6V power supply for servos
 
-**⚠️ POWER WARNING**: Connect ESP32 and servos to **common ground**. Use external 5V supply for servos!
-
-## 📱 Software Installation
-
-### Step 1: Python Setup (PC Side)
-```bash
-# Navigate to project directory
-cd animatronic-eye-mechanism/python
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Step 2: ESP32 Setup (Arduino IDE)
-1. **Install ESP32 board support**:
-   - File → Preferences → Additional Board Manager URLs
-   - Add: `https://dl.espressif.com/dl/package_esp32_index.json`
-   - Tools → Board → Boards Manager → Search "ESP32" → Install
-
-2. **Install required libraries** (Library Manager):
-   - `ESP32Servo` by Kevin Harrington
-   - `ArduinoJson` by Benoit Blanchon
-   - `WiFi` (built-in with ESP32)
-
-## ⚙️ Configuration
-
-### Step 1: ESP32 WiFi Setup
-Edit `esp32/animatronic_eye_controller.ino`:
-```cpp
-const char* ssid = "YOUR_WIFI_NAME";          // Your WiFi network name
-const char* password = "YOUR_WIFI_PASSWORD";  // Your WiFi password
-```
-
-### Step 2: Safety Calibration ⚠️
-**CRITICAL STEP**: Test servo ranges before automation!
-
-1. **Uncomment the test line** in ESP32 code:
-   ```cpp
-   // In setup() function, uncomment this line:
-   testServos(); // UNCOMMENT THIS FOR FIRST-TIME SETUP!
-   ```
-
-2. **Upload code** and **watch Serial Monitor** (115200 baud)
-
-3. **Observe each servo carefully**:
-   - Stop immediately if any binding/stress occurs
-   - Note safe movement ranges for each servo
-   - Adjust `servoLimits` array in code accordingly
-
-4. **Update servo limits** to match YOUR hardware:
-   ```cpp
-   const ServoLimits servoLimits[NUM_SERVOS] = {
-     {60, 120, 90},   // Servo 0: Adjust min/max to YOUR safe range!
-     {60, 120, 90},   // Servo 1: Test and adjust!
-     {70, 110, 90},   // Servo 2: This one may need very limited range
-     {60, 120, 90},   // Servo 3: Adjust to YOUR hardware!
-     {0, 180, 90},    // Base servos usually safe for full range
-     {0, 180, 90},    
-     {0, 180, 90}     
-   };
-   ```
-
-5. **Re-comment the test line** and upload final code
-
-### Step 3: Network Configuration
-1. **Upload ESP32 code** and check Serial Monitor for IP address
-2. **Update Python client** with ESP32's IP:
-   ```python
-   ESP32_IP = "192.168.1.100"  # Replace with YOUR ESP32's actual IP!
-   ```
-
-## 🚀 Running the System
-
-### Step 1: Start ESP32
-1. **Power on ESP32** with servo connections
-2. **Check Serial Monitor** for successful WiFi connection
-3. **Note the IP address** displayed
-
-### Step 2: Start Eye Tracker
-```bash
-cd python
-python eye_tracker.py
-```
-
-### Step 3: Calibration Process
-1. **Position yourself** 2-3 feet from camera
-2. **Look directly at the camera**
-3. **Press 'C'** to calibrate center position
-4. **System is now tracking** your eye movements!
-
-## 🎮 Controls
-
-### During Operation
-- **'C'**: Calibrate center (look at camera first)
-- **'Q'**: Quit application
-- **Spacebar**: Emergency stop (stops all servos immediately)
-
-### Visual Indicators
-- **Blue rectangles**: Detected faces
-- **Green rectangles**: Detected eyes
-- **Red dots**: Eye centers
-- **White crosshair**: Calibrated center
-- **Gray box**: Dead zone (no movement area)
-
-## 🛠️ Troubleshooting
-
-### Hardware Issues
-**Problem**: Servo binding/jerky movement
-- **STOP IMMEDIATELY** and disconnect servo power
-- Check servo limits in ESP32 code
-- Test individual servos manually
-- Reduce movement ranges
-
-**Problem**: ESP32 won't connect to WiFi
-- Verify WiFi credentials in code
-- Ensure 2.4GHz network (ESP32 doesn't support 5GHz)
-- Check distance to router
-
-### Software Issues  
-**Problem**: Camera not detected
-- Try different camera index in Python code
-- Check camera permissions
-- Ensure no other app is using camera
-
-**Problem**: Eye detection not working
-- Improve lighting on your face
-- Adjust distance from camera (2-3 feet optimal)
-- Recalibrate with 'C' key
-
-**Problem**: Connection to ESP32 fails
-- Verify ESP32 IP address in Python code
-- Check both devices on same network
-- Check Windows firewall settings
-
-## 🎯 Performance Tuning
-
-### Sensitivity Adjustment
-In `eye_tracker.py`, modify these values:
-```python
-self.dead_zone = 30          # Larger = less sensitive
-self.smoothing_window = 5    # Larger = smoother movement  
-self.sensitivity = 0.8       # 0.1-1.0, lower = less movement
-self.command_interval = 0.1  # Faster = more responsive
-```
-
-### Servo Movement Tuning
-In ESP32 code, adjust movement ranges:
-```cpp
-// Conservative eye servo movement (±15°)
-int eyeServo0 = servoLimits[0].centerAngle + (gazeX * 15);
-
-// More aggressive base servo movement (±45°)  
-int basePan = servoLimits[4].centerAngle + (gazeX * 45);
-```
-
-## 🆘 Emergency Procedures
-
-### If Hardware Shows Stress:
-1. **Press spacebar** in Python app (emergency stop)
-2. **Disconnect servo power** immediately
-3. **Reset ESP32** if needed
-4. **Check all connections** and servo limits
-5. **Reduce movement ranges** before restarting
-
-### Recovery Steps:
-1. **Test each servo individually** 
-2. **Update servo limits** to safer ranges
-3. **Restart system** with new limits
-4. **Gradually increase** ranges if needed
-
-## 📊 System Architecture
+## Wiring Diagram
 
 ```
-[PC Camera] → [OpenCV] → [Eye Tracking] → [WiFi] → [ESP32] → [Servos]
-     ↓           ↓           ↓             ↓        ↓         ↓
- Video Feed  Face/Eye    Gaze Vector   Commands  PWM     Physical
-            Detection                              Signals  Movement
+ESP32                    PCA9685
+-----------------        -----------------
+GND         ------->     GND
+3.3V/5V     ------->     VCC
+GPIO21(SDA) ------->     SDA
+GPIO22(SCL) ------->     SCL
+
+ESP32 Inputs:
+-----------------
+GPIO14      <------- Mode Switch
+GPIO13      <------- Enable Switch
+GPIO15      <------- Blink Button
+GPIO34      <------- Up/Down Joystick
+GPIO32      <------- Left/Right Joystick
+GPIO35      <------- Trim Potentiometer
+
+PCA9685 Outputs:
+-----------------
+Channel 0   ------->     Left/Right Servo
+Channel 1   ------->     Up/Down Servo
+Channel 2   ------->     Top Left Eyelid Servo
+Channel 3   ------->     Bottom Left Eyelid Servo
+Channel 4   ------->     Top Right Eyelid Servo
+Channel 5   ------->     Bottom Right Eyelid Servo
 ```
 
-## 🔜 Future Enhancements
+## Installation
 
-- **Advanced blink patterns** (sleepy eyes, expressions)
-- **Sound reactive movement** (look toward sound source)
-- **Multiple face tracking** (switch between people)
-- **Mobile app control** (manual servo positioning)
-- **Preset expressions** (angry, happy, surprised)
+### Step 1: MicroPython Setup
 
-## 📞 Support
+1. Download the latest MicroPython firmware for ESP32 from [micropython.org](https://micropython.org/download/esp32/)
+2. Flash the firmware to your ESP32 using esptool or your preferred method
 
-If you encounter issues:
+### Step 2: Thonny IDE Setup
 
-1. **Check Serial Monitor** output from ESP32
-2. **Verify all wiring** connections  
-3. **Test servo ranges manually** before automation
-4. **Start with minimal movement ranges** and increase gradually
+1. Download and install [Thonny IDE](https://thonny.org/)
+2. Configure Thonny:
+   - Open Settings > Interpreter
+   - Select "MicroPython ESP32" 
+   - Select your ESP32's port
+   - Click "OK"
 
-**Remember**: Hardware safety is more important than perfect tracking!
+### Step 3: Code Installation
 
-## 🏆 Credits
+1. Create a new project folder on your computer
+2. Create two files: `main.py` and `pca9685.py`
+3. Copy the provided code into these files
+4. Upload both files to your ESP32 using Thonny's "Save as... > MicroPython device" option
 
-Created for animatronic enthusiasts who prioritize safety and smooth operation.
+## How It Works
 
-**Version**: 1.0 - Safety First Edition
-**License**: MIT
-**Author**: Animatronic Eye Tracking System
+The system operates in three modes:
+
+1. **Calibration Mode**: When the mode switch is held, all servos move to their initial positions for assembly and calibration.
+
+2. **Automatic Mode**: When the enable switch is off, the eyes will:
+   - Randomly look around
+   - Blink at random intervals
+   - Change expressions autonomously
+
+3. **Controller Mode**: When the enable switch is on, you can:
+   - Control eye position using the joystick potentiometers
+   - Adjust eye openness with the trim potentiometer
+   - Trigger blinking with the blink button
+
+## Code Structure
+
+- **PCA9685 Driver**: Handles communication with the servo controller
+- **Servo Mapping**: Defines channel assignments and movement limits
+- **Scaling Functions**: Converts potentiometer readings to appropriate servo angles
+- **Eyelid Control**: Coordinates eyelid movement with eye position
+- **Mode Handling**: Manages switching between operation modes
+
+## Configuration
+
+You can adjust the following parameters in the code:
+
+- `servo_limits`: Set minimum and maximum angles for each servo
+- `max_speed`: Limit the maximum speed of eye movement
+- `deadzone`: Adjust the joystick center deadzone
+- Potentiometer center values: Calibrate the center position of joysticks
+
+## Acknowledgments
+
+Based on Will Cogley's Eye Mechanism control code:
+- [Instructables Guide](https://www.instructables.com/Animatronic-Eye-Mechanism/)
+- [Patreon](https://www.patreon.com/c/Will_Cogley/posts)
+- [Documentation](https://willcogley.notion.site/EyeMech-3-2-1af24779b64d80b19edfdd795d4b90e5)
+- [3D Models](https://makerworld.com/es/models/1184807-animatronic-eye-mechanism-e3-2)
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
