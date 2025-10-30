@@ -287,25 +287,35 @@ class EyeTracker:
                 # Map to servo angles
                 lr_angle, ud_angle = self.map_to_servo_angle(gaze_x, gaze_y)
                 
+                # Calculate tilt and head rotation (same logic as send_to_esp32)
+                tilt_lr = int(90 + (lr_angle - 90) * 0.3)
+                tilt_ud = int(90 + (ud_angle - 90) * 0.3)
+                head_offset = (lr_angle - 90) * 0.5
+                head_rotate = int(90 + head_offset)
+                
+                # Clamp values
+                tilt_lr = max(70, min(110, tilt_lr))
+                tilt_ud = max(70, min(110, tilt_ud))
+                head_rotate = max(45, min(135, head_rotate))
+                
                 # Send to ESP32
                 self.send_to_esp32(lr_angle, ud_angle, is_blinking)
                 
-                # Display info on frame
-                cv2.putText(frame, f"FPS: {int(fps)}", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                cv2.putText(frame, f"LR: {lr_angle}", (10, 60), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-                cv2.putText(frame, f"UD: {ud_angle}", (10, 90), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-                cv2.putText(frame, f"Blink: {'YES' if is_blinking else 'NO'}", (10, 120), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255) if is_blinking else (0, 255, 0), 2)
-                cv2.putText(frame, f"EAR: {ear:.3f}", (10, 150), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                
-                # Draw gaze position indicator
-                gaze_display_x = int(gaze_x * frame.shape[1])
-                gaze_display_y = int(gaze_y * frame.shape[0])
-                cv2.circle(frame, (gaze_display_x, gaze_display_y), 10, (0, 255, 0), -1)
+                # Display only the 7 servo values in degrees
+                cv2.putText(frame, f"Eyeball LR: {lr_angle}deg", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                cv2.putText(frame, f"Eyeball UD: {ud_angle}deg", (10, 60), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                cv2.putText(frame, f"Tilt LR: {tilt_lr}deg", (10, 90), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                cv2.putText(frame, f"Tilt UD: {tilt_ud}deg", (10, 120), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                cv2.putText(frame, f"Head Rotate: {head_rotate}deg", (10, 150), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 128, 0), 2)
+                cv2.putText(frame, f"Blink L: {1 if is_blinking else 0}", (10, 180), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255) if is_blinking else (0, 255, 0), 2)
+                cv2.putText(frame, f"Blink R: {1 if is_blinking else 0}", (10, 210), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255) if is_blinking else (0, 255, 0), 2)
                 
                 # Calibration mode display
                 if self.calibration_mode:
