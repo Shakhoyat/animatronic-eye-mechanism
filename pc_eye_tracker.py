@@ -187,34 +187,21 @@ class EyeTracker:
         
         return int(lr_angle), int(ud_angle)
     
-    def send_to_esp32(self, lr_angle, ud_angle, blink):
+    def send_to_esp32(self, eye_left_lr, eye_right_lr, eyelid_left, eyelid_right, 
+                      tilt_left, tilt_right, head_rotate):
         """
-        Send eye position and blink data to ESP32 via serial
-        Format: "ELR:90,EUD:90,TLR:90,TUD:90,HR:90,BL:0\n"
+        Send all 7 servo positions to ESP32 via serial
+        Format: "S1:90,S2:90,S3:120,S4:120,S5:90,S6:90,S7:90\n"
         
-        For 7 servos:
-        - ELR/EUD: Eyeball tracking (fast response)
-        - TLR/TUD: Face tilt follows eyeball with offset (natural head movement)
-        - HR: Head rotation follows horizontal gaze
+        S1: Left Eye LR (60-120)
+        S2: Right Eye LR (60-120)
+        S3: Left Eyelid (70-120, 120=open, 70=closed)
+        S4: Right Eyelid (70-120, 120=open, 70=closed)
+        S5: Tilt Left Servo (60-120)
+        S6: Tilt Right Servo (60-120)
+        S7: Head Rotate (60-120)
         """
-        blink_val = 1 if blink else 0
-        
-        # Calculate head tilt based on eyeball position (follows with less range)
-        # Maps eyeball 60-120° to tilt 70-110° (less extreme)
-        tilt_lr = int(90 + (lr_angle - 90) * 0.3)  # 30% of eyeball movement
-        tilt_ud = int(90 + (ud_angle - 90) * 0.3)  # 30% of eyeball movement
-        
-        # Calculate head rotation based on horizontal gaze
-        # Large left/right gaze triggers head turn
-        head_offset = (lr_angle - 90) * 0.5  # 50% of eyeball movement
-        head_rotate = int(90 + head_offset)
-        
-        # Clamp values
-        tilt_lr = max(70, min(110, tilt_lr))
-        tilt_ud = max(70, min(110, tilt_ud))
-        head_rotate = max(45, min(135, head_rotate))
-        
-        command = f"ELR:{lr_angle},EUD:{ud_angle},TLR:{tilt_lr},TUD:{tilt_ud},HR:{head_rotate},BL:{blink_val}\n"
+        command = f"S1:{eye_left_lr},S2:{eye_right_lr},S3:{eyelid_left},S4:{eyelid_right},S5:{tilt_left},S6:{tilt_right},S7:{head_rotate}\n"
         try:
             self.serial.write(command.encode())
         except serial.SerialException as e:
@@ -243,11 +230,11 @@ class EyeTracker:
         print("  Q - Quit")
         print("  C - Enter calibration mode")
         print("  B - Adjust blink threshold")
-        print("\n7 Servos:")
-        print("  - Eyeball LR/UD (tracks eyes fast)")
-        print("  - Eyelids Left/Right (blink control)")
-        print("  - Face Tilt LR/UD (follows gaze naturally)")
-        print("  - Head Rotate (follows horizontal gaze)")
+        print("\n7 Servos Configuration:")
+        print("  S1 & S2 - Left/Right Eye LR (60-120°)")
+        print("  S3 & S4 - Left/Right Eyelid (70-120°, 120=open)")
+        print("  S5 & S6 - Left/Right Tilt Servos (head tilt)")
+        print("  S7 - Head Rotation LR (60-120°)")
         print("\n")
         
         while True:
@@ -284,43 +271,56 @@ class EyeTracker:
                 # Detect blink
                 is_blinking, ear = self.detect_blink(face_landmarks)
                 
-                # Map to servo angles
-                lr_angle, ud_angle = self.map_to_servo_angle(gaze_x, gaze_y)
+                # Map gaze to servo angles
+                gaze_lr, _ = self.map_to_servo_angle(gaze_x, gaze_y)
                 
-                # Calculate tilt and head rotation (same logic as send_to_esp32)
-                tilt_lr = int(90 + (lr_angle - 90) * 0.3)
-                tilt_ud = int(90 + (ud_angle - 90) * 0.3)
-                head_offset = (lr_angle - 90) * 0.5
-                head_rotate = int(90 + head_offset)
+                # Servo 1 & 2: Left and Right Eyeball LR (60-120 degrees)
+                eye_left_lr = int(gaze_lr)
+                eye_right_lr = int(gaze_lr)
+                eye_left_lr = max(60, min(120, eye_left_lr))
+                eye_right_lr = max(60, min(120, eye_right_lr))
                 
-                # Clamp values
-                tilt_lr = max(70, min(110, tilt_lr))
-                tilt_ud = max(70, min(110, tilt_ud))
-                head_rotate = max(45, min(135, head_rotate))
+                # Servo 3 & 4: Left and Right Eyelid (70-120 degrees, 120=open, 70=closed)
+                eyelid_left = 70 if is_blinking else 120
+                eyelid_right = 70 if is_blinking else 120
                 
-                # Calculate eyelid positions based on blink state
-                # When blinking: eyelids close (top goes down, bottom goes up)
-                # When not blinking: eyelids open (both at neutral)
-                eyelid_top = 10 if is_blinking else 170  # Servo 3: Top eyelid
-                eyelid_bottom = 170 if is_blinking else 10  # Servo 4: Bottom eyelid
+                # Servo 5 & 6: Head Tilt (left and right servo at bottom of eyes)
+                # Both servos control head tilt: up+up=head up, left up+right down=tilt right, etc.
+                # Map vertical gaze to head tilt
+                norm_y = (gaze_y - self.calibration['center_y']) / self.calibration['range_y']
+                norm_y = max(-1, min(1, norm_y))
+                
+                tilt_base = 90  # Center position
+                tilt_range = 30  # ±30 degrees range
+                
+                # Looking up: both servos up, Looking down: both servos down
+                tilt_left = int(tilt_base + (norm_y * tilt_range * 0.5))  # 50% of gaze
+                tilt_right = int(tilt_base + (norm_y * tilt_range * 0.5))
+                tilt_left = max(60, min(120, tilt_left))
+                tilt_right = max(60, min(120, tilt_right))
+                
+                # Servo 7: Head Rotation LR (follows horizontal gaze)
+                head_rotate = int(gaze_lr)  # Same as eyeball LR
+                head_rotate = max(60, min(120, head_rotate))
                 
                 # Send to ESP32
-                self.send_to_esp32(lr_angle, ud_angle, is_blinking)
+                self.send_to_esp32(eye_left_lr, eye_right_lr, eyelid_left, eyelid_right, 
+                                  tilt_left, tilt_right, head_rotate)
                 
                 # Display exactly 7 servo values in degrees
-                cv2.putText(frame, f"Servo 1 (Eyeball LR):  {lr_angle:3d}", (10, 40), 
+                cv2.putText(frame, f"S1 Eye Left LR:    {eye_left_lr:3d}", (10, 40), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                cv2.putText(frame, f"Servo 2 (Eyeball UD):  {ud_angle:3d}", (10, 75), 
+                cv2.putText(frame, f"S2 Eye Right LR:   {eye_right_lr:3d}", (10, 75), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                cv2.putText(frame, f"Servo 3 (Eyelid Top):  {eyelid_top:3d}", (10, 110), 
+                cv2.putText(frame, f"S3 Eyelid Left:    {eyelid_left:3d}", (10, 110), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
-                cv2.putText(frame, f"Servo 4 (Eyelid Bot):  {eyelid_bottom:3d}", (10, 145), 
+                cv2.putText(frame, f"S4 Eyelid Right:   {eyelid_right:3d}", (10, 145), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
-                cv2.putText(frame, f"Servo 5 (Tilt LR):     {tilt_lr:3d}", (10, 180), 
+                cv2.putText(frame, f"S5 Tilt Left:      {tilt_left:3d}", (10, 180), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-                cv2.putText(frame, f"Servo 6 (Tilt UD):     {tilt_ud:3d}", (10, 215), 
+                cv2.putText(frame, f"S6 Tilt Right:     {tilt_right:3d}", (10, 215), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-                cv2.putText(frame, f"Servo 7 (Head Rotate): {head_rotate:3d}", (10, 250), 
+                cv2.putText(frame, f"S7 Head Rotate:    {head_rotate:3d}", (10, 250), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 128, 0), 2)
                 
                 # Calibration mode display
