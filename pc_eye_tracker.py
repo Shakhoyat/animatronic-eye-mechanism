@@ -190,10 +190,31 @@ class EyeTracker:
     def send_to_esp32(self, lr_angle, ud_angle, blink):
         """
         Send eye position and blink data to ESP32 via serial
-        Format: "LR:90,UD:90,BL:0\n"
+        Format: "ELR:90,EUD:90,TLR:90,TUD:90,HR:90,BL:0\n"
+        
+        For 7 servos:
+        - ELR/EUD: Eyeball tracking (fast response)
+        - TLR/TUD: Face tilt follows eyeball with offset (natural head movement)
+        - HR: Head rotation follows horizontal gaze
         """
         blink_val = 1 if blink else 0
-        command = f"LR:{lr_angle},UD:{ud_angle},BL:{blink_val}\n"
+        
+        # Calculate head tilt based on eyeball position (follows with less range)
+        # Maps eyeball 60-120° to tilt 70-110° (less extreme)
+        tilt_lr = int(90 + (lr_angle - 90) * 0.3)  # 30% of eyeball movement
+        tilt_ud = int(90 + (ud_angle - 90) * 0.3)  # 30% of eyeball movement
+        
+        # Calculate head rotation based on horizontal gaze
+        # Large left/right gaze triggers head turn
+        head_offset = (lr_angle - 90) * 0.5  # 50% of eyeball movement
+        head_rotate = int(90 + head_offset)
+        
+        # Clamp values
+        tilt_lr = max(70, min(110, tilt_lr))
+        tilt_ud = max(70, min(110, tilt_ud))
+        head_rotate = max(45, min(135, head_rotate))
+        
+        command = f"ELR:{lr_angle},EUD:{ud_angle},TLR:{tilt_lr},TUD:{tilt_ud},HR:{head_rotate},BL:{blink_val}\n"
         try:
             self.serial.write(command.encode())
         except serial.SerialException as e:
@@ -217,10 +238,16 @@ class EyeTracker:
         """
         Main loop: capture video, detect eyes, send data to ESP32
         """
-        print("\n=== Eye Tracker Started ===")
-        print("Press 'Q' to quit")
-        print("Press 'C' to enter calibration mode")
-        print("Press 'B' to adjust blink threshold")
+        print("\n=== Eye Tracker Started (7 Servo Mode) ===")
+        print("Controls:")
+        print("  Q - Quit")
+        print("  C - Enter calibration mode")
+        print("  B - Adjust blink threshold")
+        print("\n7 Servos:")
+        print("  - Eyeball LR/UD (tracks eyes fast)")
+        print("  - Eyelids Left/Right (blink control)")
+        print("  - Face Tilt LR/UD (follows gaze naturally)")
+        print("  - Head Rotate (follows horizontal gaze)")
         print("\n")
         
         while True:

@@ -11,21 +11,23 @@
 
 #include <ESP32Servo.h>
 
-// Create Servo objects
-Servo servoLR;  // Left/Right movement
-Servo servoUD;  // Up/Down movement
-Servo servoTL;  // Top Left eyelid
-Servo servoBL;  // Bottom Left eyelid
-Servo servoTR;  // Top Right eyelid
-Servo servoBR;  // Bottom Right eyelid
+// Create Servo objects - 7 servos total
+Servo servoEyeballLR;    // Eyeball Left/Right movement
+Servo servoEyeballUD;    // Eyeball Up/Down movement
+Servo servoEyelidLeft;   // Left eyelid
+Servo servoEyelidRight;  // Right eyelid
+Servo servoTiltLR;       // Face tilt Left/Right
+Servo servoTiltUD;       // Face tilt Up/Down
+Servo servoHeadRotate;   // Head rotation Left/Right
 
 // GPIO pins for servos (adjust these to your wiring)
-#define PIN_LR  13  // Left/Right servo
-#define PIN_UD  12  // Up/Down servo
-#define PIN_TL  14  // Top Left eyelid
-#define PIN_BL  27  // Bottom Left eyelid
-#define PIN_TR  26  // Top Right eyelid
-#define PIN_BR  25  // Bottom Right eyelid
+#define PIN_EYEBALL_LR    13  // Eyeball Left/Right
+#define PIN_EYEBALL_UD    12  // Eyeball Up/Down
+#define PIN_EYELID_LEFT   14  // Left eyelid
+#define PIN_EYELID_RIGHT  27  // Right eyelid
+#define PIN_TILT_LR       26  // Face tilt Left/Right
+#define PIN_TILT_UD       25  // Face tilt Up/Down
+#define PIN_HEAD_ROTATE   33  // Head rotation
 
 // Servo limits (adjust these to match your hardware)
 struct ServoLimits {
@@ -34,26 +36,31 @@ struct ServoLimits {
 };
 
 ServoLimits servoLimits[] = {
-  {60, 120},   // LR: Left/Right movement range
-  {60, 120},   // UD: Up/Down movement range
-  {90, 10},    // TL: Top Left eyelid (inverted)
-  {10, 90},    // BL: Bottom Left eyelid
-  {10, 90},    // TR: Top Right eyelid
-  {90, 10}     // BR: Bottom Right eyelid (inverted)
+  {60, 120},   // EYEBALL_LR: Eyeball Left/Right (±30° from center)
+  {60, 120},   // EYEBALL_UD: Eyeball Up/Down (±30° from center)
+  {10, 90},    // EYELID_LEFT: Left eyelid (10=closed, 90=open)
+  {10, 90},    // EYELID_RIGHT: Right eyelid (10=closed, 90=open)
+  {0, 180},    // TILT_LR: Face tilt Left/Right (full range)
+  {0, 180},    // TILT_UD: Face tilt Up/Down (full range)
+  {0, 180}     // HEAD_ROTATE: Head rotation (full range)
 };
 
 // Serial communication settings
 #define SERIAL_BAUD 115200
 
 // State variables
-float currentLR = 90.0;
-float currentUD = 90.0;
+float currentEyeballLR = 90.0;
+float currentEyeballUD = 90.0;
+float currentTiltLR = 90.0;
+float currentTiltUD = 90.0;
+float currentHeadRotate = 90.0;
 bool isBlinking = false;
 unsigned long blinkStartTime = 0;
 const int blinkDuration = 150;  // milliseconds
 
 // Smoothing parameter (0.1 = smooth, 0.9 = responsive)
 const float smoothing = 0.3;
+const float smoothingHead = 0.1;  // Slower smoothing for head movements
 
 // Timeout settings
 unsigned long lastUpdateTime = 0;
@@ -65,11 +72,11 @@ String inputBuffer = "";
 // Function prototypes
 void initializeServos();
 void setServoAngle(Servo &servo, int angle);
-void controlUDAndLids(int udAngle);
+void controlEyelids(bool blinkState);
 void blinkEyes();
 void parseCommand(String command);
-void updatePosition(int lrAngle, int udAngle, bool blinkState);
-float smoothAngle(float target, float current);
+void updatePosition(int eyeLR, int eyeUD, int tiltLR, int tiltUD, int headRotate, bool blinkState);
+float smoothAngle(float target, float current, float smoothFactor);
 
 void setup() {
   // Initialize serial communication with PC
@@ -85,12 +92,13 @@ void setup() {
   ESP32PWM::allocateTimer(3);
   
   // Attach servos to GPIO pins
-  servoLR.attach(PIN_LR, 500, 2500);  // Min/max pulse width in microseconds
-  servoUD.attach(PIN_UD, 500, 2500);
-  servoTL.attach(PIN_TL, 500, 2500);
-  servoBL.attach(PIN_BL, 500, 2500);
-  servoTR.attach(PIN_TR, 500, 2500);
-  servoBR.attach(PIN_BR, 500, 2500);
+  servoEyeballLR.attach(PIN_EYEBALL_LR, 500, 2500);  // Min/max pulse width in microseconds
+  servoEyeballUD.attach(PIN_EYEBALL_UD, 500, 2500);
+  servoEyelidLeft.attach(PIN_EYELID_LEFT, 500, 2500);
+  servoEyelidRight.attach(PIN_EYELID_RIGHT, 500, 2500);
+  servoTiltLR.attach(PIN_TILT_LR, 500, 2500);
+  servoTiltUD.attach(PIN_TILT_UD, 500, 2500);
+  servoHeadRotate.attach(PIN_HEAD_ROTATE, 500, 2500);
   
   delay(100);
   
@@ -130,12 +138,19 @@ void loop() {
   
   // Timeout check - return to neutral if no data received
   if (millis() - lastUpdateTime > timeoutDuration) {
-    if (currentLR != 90.0 || currentUD != 90.0) {
+    if (currentEyeballLR != 90.0 || currentEyeballUD != 90.0) {
       Serial.println("Timeout: Returning to neutral position");
-      currentLR = 90.0;
-      currentUD = 90.0;
-      setServoAngle(servoLR, 90);
-      controlUDAndLids(90);
+      currentEyeballLR = 90.0;
+      currentEyeballUD = 90.0;
+      currentTiltLR = 90.0;
+      currentTiltUD = 90.0;
+      currentHeadRotate = 90.0;
+      setServoAngle(servoEyeballLR, 90);
+      setServoAngle(servoEyeballUD, 90);
+      setServoAngle(servoTiltLR, 90);
+      setServoAngle(servoTiltUD, 90);
+      setServoAngle(servoHeadRotate, 90);
+      controlEyelids(false);
       lastUpdateTime = millis();
     }
   }
@@ -146,15 +161,18 @@ void loop() {
 void initializeServos() {
   Serial.println("Initializing servos to neutral position...");
   
-  // Center eye position
-  setServoAngle(servoLR, 90);
-  setServoAngle(servoUD, 90);
+  // Center eyeball position
+  setServoAngle(servoEyeballLR, 90);
+  setServoAngle(servoEyeballUD, 90);
   
   // Open eyelids
-  setServoAngle(servoTL, servoLimits[2].max);  // OPEN
-  setServoAngle(servoBL, servoLimits[3].max);  // OPEN
-  setServoAngle(servoTR, servoLimits[4].max);  // OPEN
-  setServoAngle(servoBR, servoLimits[5].max);  // OPEN
+  setServoAngle(servoEyelidLeft, servoLimits[2].max);   // OPEN
+  setServoAngle(servoEyelidRight, servoLimits[3].max);  // OPEN
+  
+  // Center face tilt and head rotation
+  setServoAngle(servoTiltLR, 90);
+  setServoAngle(servoTiltUD, 90);
+  setServoAngle(servoHeadRotate, 90);
   
   delay(500);
   Serial.println("Servos initialized");
@@ -168,72 +186,45 @@ void setServoAngle(Servo &servo, int angle) {
   servo.write(angle);
 }
 
-void controlUDAndLids(int udAngle) {
+void controlEyelids(bool shouldBlink) {
   /*
-   * Move UD servo and adjust eyelids based on vertical eye position
-   * Eyelids partially close when looking up/down for realistic effect
+   * Control eyelids - open or closed
    */
-  
-  // Get limits
-  int udMin = servoLimits[1].min;
-  int udMax = servoLimits[1].max;
-  int tlMin = servoLimits[2].min;  // min=closed, max=open
-  int tlMax = servoLimits[2].max;
-  int trMin = servoLimits[4].min;
-  int trMax = servoLimits[4].max;
-  int blMin = servoLimits[3].min;
-  int blMax = servoLimits[3].max;
-  int brMin = servoLimits[5].min;
-  int brMax = servoLimits[5].max;
-  
-  // Normalize UD position (0 = looking down, 1 = looking up)
-  float udRange = udMax - udMin;
-  float udProgress = 0.5;
-  if (udRange > 0) {
-    udProgress = (float)(udAngle - udMin) / udRange;
+  if (shouldBlink) {
+    // Close eyelids
+    setServoAngle(servoEyelidLeft, servoLimits[2].min);   // CLOSED
+    setServoAngle(servoEyelidRight, servoLimits[3].min);  // CLOSED
+  } else {
+    // Open eyelids
+    setServoAngle(servoEyelidLeft, servoLimits[2].max);   // OPEN
+    setServoAngle(servoEyelidRight, servoLimits[3].max);  // OPEN
   }
-  
-  // Clamp to valid range
-  udProgress = constrain(udProgress, 0.0, 1.0);
-  
-  // Calculate eyelid closing factors
-  // When looking up, close top lids slightly
-  // When looking down, close bottom lids slightly
-  float topCloseFactor = 0.6 * (1.0 - udProgress);     // Higher when looking down
-  float bottomCloseFactor = 0.6 * udProgress;          // Higher when looking up
-  
-  // Calculate target eyelid positions
-  int tlTarget = tlMin + (tlMax - tlMin) * (1.0 - topCloseFactor);
-  int trTarget = trMin + (trMax - trMin) * (1.0 - topCloseFactor);
-  int blTarget = blMin + (blMax - blMin) * (1.0 - bottomCloseFactor);
-  int brTarget = brMin + (brMax - brMin) * (1.0 - bottomCloseFactor);
-  
-  // Move servos
-  setServoAngle(servoUD, udAngle);
-  setServoAngle(servoTL, tlTarget);
-  setServoAngle(servoTR, trTarget);
-  setServoAngle(servoBL, blTarget);
-  setServoAngle(servoBR, brTarget);
 }
 
 void blinkEyes() {
-  // Close all eyelids
-  setServoAngle(servoTL, servoLimits[2].min);  // CLOSED
-  setServoAngle(servoBL, servoLimits[3].min);  // CLOSED
-  setServoAngle(servoTR, servoLimits[4].min);  // CLOSED
-  setServoAngle(servoBR, servoLimits[5].min);  // CLOSED
+  // Close eyelids
+  controlEyelids(true);
 }
 
 void parseCommand(String command) {
   /*
    * Parse serial command from PC
-   * Format: "LR:90,UD:90,BL:0"
+   * Format: "ELR:90,EUD:90,TLR:90,TUD:90,HR:90,BL:0"
+   * ELR = Eyeball Left/Right
+   * EUD = Eyeball Up/Down
+   * TLR = Tilt Left/Right
+   * TUD = Tilt Up/Down
+   * HR = Head Rotate
+   * BL = Blink
    */
   
   command.trim();
   
-  int lrAngle = -1;
-  int udAngle = -1;
+  int eyeLR = 90;    // Default to center
+  int eyeUD = 90;
+  int tiltLR = 90;
+  int tiltUD = 90;
+  int headRotate = 90;
   bool blinkState = false;
   
   // Split by comma
@@ -260,34 +251,49 @@ void parseCommand(String command) {
       key.trim();
       value.trim();
       
-      if (key == "LR") {
-        lrAngle = value.toInt();
-      } else if (key == "UD") {
-        udAngle = value.toInt();
+      if (key == "ELR") {
+        eyeLR = value.toInt();
+      } else if (key == "EUD") {
+        eyeUD = value.toInt();
+      } else if (key == "TLR") {
+        tiltLR = value.toInt();
+      } else if (key == "TUD") {
+        tiltUD = value.toInt();
+      } else if (key == "HR") {
+        headRotate = value.toInt();
       } else if (key == "BL") {
         blinkState = (value.toInt() != 0);
       }
     }
   }
   
-  // Update position if valid data received
-  if (lrAngle >= 0 && udAngle >= 0) {
-    updatePosition(lrAngle, udAngle, blinkState);
-  }
+  // Update position
+  updatePosition(eyeLR, eyeUD, tiltLR, tiltUD, headRotate, blinkState);
 }
 
-void updatePosition(int lrAngle, int udAngle, bool blinkState) {
-  // Apply smoothing to eye movements
-  float smoothLR = smoothAngle((float)lrAngle, currentLR);
-  float smoothUD = smoothAngle((float)udAngle, currentUD);
+void updatePosition(int eyeLR, int eyeUD, int tiltLR, int tiltUD, int headRotate, bool blinkState) {
+  // Apply smoothing to eyeball movements (fast)
+  float smoothEyeLR = smoothAngle((float)eyeLR, currentEyeballLR, smoothing);
+  float smoothEyeUD = smoothAngle((float)eyeUD, currentEyeballUD, smoothing);
+  
+  // Apply smoothing to head movements (slower for more natural motion)
+  float smoothTiltLR = smoothAngle((float)tiltLR, currentTiltLR, smoothingHead);
+  float smoothTiltUD = smoothAngle((float)tiltUD, currentTiltUD, smoothingHead);
+  float smoothHeadRot = smoothAngle((float)headRotate, currentHeadRotate, smoothingHead);
   
   // Clamp to servo limits
-  smoothLR = constrain(smoothLR, servoLimits[0].min, servoLimits[0].max);
-  smoothUD = constrain(smoothUD, servoLimits[1].min, servoLimits[1].max);
+  smoothEyeLR = constrain(smoothEyeLR, servoLimits[0].min, servoLimits[0].max);
+  smoothEyeUD = constrain(smoothEyeUD, servoLimits[1].min, servoLimits[1].max);
+  smoothTiltLR = constrain(smoothTiltLR, servoLimits[4].min, servoLimits[4].max);
+  smoothTiltUD = constrain(smoothTiltUD, servoLimits[5].min, servoLimits[5].max);
+  smoothHeadRot = constrain(smoothHeadRot, servoLimits[6].min, servoLimits[6].max);
   
   // Update current positions
-  currentLR = smoothLR;
-  currentUD = smoothUD;
+  currentEyeballLR = smoothEyeLR;
+  currentEyeballUD = smoothEyeUD;
+  currentTiltLR = smoothTiltLR;
+  currentTiltUD = smoothTiltUD;
+  currentHeadRotate = smoothHeadRot;
   
   // Handle blinking
   if (blinkState && !isBlinking) {
@@ -297,14 +303,20 @@ void updatePosition(int lrAngle, int udAngle, bool blinkState) {
     blinkEyes();
   }
   
-  // Update servo positions (if not blinking)
+  // Update servo positions
+  setServoAngle(servoEyeballLR, (int)currentEyeballLR);
+  setServoAngle(servoEyeballUD, (int)currentEyeballUD);
+  setServoAngle(servoTiltLR, (int)currentTiltLR);
+  setServoAngle(servoTiltUD, (int)currentTiltUD);
+  setServoAngle(servoHeadRotate, (int)currentHeadRotate);
+  
+  // Update eyelids (if not blinking)
   if (!isBlinking) {
-    setServoAngle(servoLR, (int)currentLR);
-    controlUDAndLids((int)currentUD);
+    controlEyelids(false);
   }
 }
 
-float smoothAngle(float target, float current) {
+float smoothAngle(float target, float current, float smoothFactor) {
   // Apply exponential smoothing
-  return current + (target - current) * smoothing;
+  return current + (target - current) * smoothFactor;
 }
