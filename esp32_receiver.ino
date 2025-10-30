@@ -134,7 +134,7 @@ void loop() {
       Serial.println("Timeout: Returning to neutral position");
       currentLR = 90.0;
       currentUD = 90.0;
-      setServoAngle(SERVO_LR, 90);
+      setServoAngle(servoLR, 90);
       controlUDAndLids(90);
       lastUpdateTime = millis();
     }
