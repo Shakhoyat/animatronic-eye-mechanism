@@ -58,8 +58,9 @@ float currentTiltRight = 90.0;
 float currentHeadRotate = 90.0;
 
 // Smoothing parameter (0.1 = smooth, 0.9 = responsive)
-const float smoothing = 0.3;      // For eyes and head
-const float smoothingEyelid = 0.8; // Fast for eyelids
+const float smoothing = 0.5;       // For eyes (medium fast)
+const float smoothingHead = 0.6;   // For head and tilt (faster)
+const float smoothingEyelid = 0.9; // Very fast for eyelids
 
 // Timeout settings
 unsigned long lastUpdateTime = 0;
@@ -269,14 +270,14 @@ void parseCommand(String command) {
 }
 
 void updatePosition(int s1, int s2, int s3, int s4, int s5, int s6, int s7) {
-  // Apply smoothing to all servos
+  // Apply smoothing to all servos with appropriate speeds
   float smooth1 = smoothAngle((float)s1, currentEyeLeftLR, smoothing);
   float smooth2 = smoothAngle((float)s2, currentEyeRightLR, smoothing);
   float smooth3 = smoothAngle((float)s3, currentEyelidLeft, smoothingEyelid);
   float smooth4 = smoothAngle((float)s4, currentEyelidRight, smoothingEyelid);
-  float smooth5 = smoothAngle((float)s5, currentTiltLeft, smoothing);
-  float smooth6 = smoothAngle((float)s6, currentTiltRight, smoothing);
-  float smooth7 = smoothAngle((float)s7, currentHeadRotate, smoothing);
+  float smooth5 = smoothAngle((float)s5, currentTiltLeft, smoothingHead);
+  float smooth6 = smoothAngle((float)s6, currentTiltRight, smoothingHead);
+  float smooth7 = smoothAngle((float)s7, currentHeadRotate, smoothingHead);
   
   // Clamp to servo limits
   smooth1 = constrain(smooth1, servoLimits[0].min, servoLimits[0].max);

@@ -97,12 +97,23 @@ class EyeTracker:
     
     def get_gaze_position(self, face_landmarks, frame_width, frame_height):
         """
-        Calculate gaze position from facial landmarks
-        Returns normalized x, y position (0-1 range)
+        Calculate gaze position based on face orientation (mirrors the face)
+        Returns normalized gaze direction and head orientation, independent of face position in frame
         """
-        # Get left and right iris center landmarks (468-473 indices)
-        left_iris = [469, 470, 471, 472]  # Left iris landmarks
-        right_iris = [474, 475, 476, 477]  # Right iris landmarks
+        # Eye landmarks
+        left_eye_left = face_landmarks.landmark[33]    # Left corner of left eye
+        left_eye_right = face_landmarks.landmark[133]  # Right corner of left eye
+        left_eye_top = face_landmarks.landmark[159]    # Top of left eye
+        left_eye_bottom = face_landmarks.landmark[145] # Bottom of left eye
+        
+        right_eye_left = face_landmarks.landmark[362]  # Left corner of right eye
+        right_eye_right = face_landmarks.landmark[263] # Right corner of right eye
+        right_eye_top = face_landmarks.landmark[386]   # Top of right eye
+        right_eye_bottom = face_landmarks.landmark[374] # Bottom of right eye
+        
+        # Iris landmarks
+        left_iris = [469, 470, 471, 472]
+        right_iris = [474, 475, 476, 477]
         
         # Extract iris positions
         left_iris_coords = []
@@ -117,18 +128,70 @@ class EyeTracker:
             right_iris_coords.append([landmark.x, landmark.y])
         
         # Calculate center of each iris
-        left_center = np.mean(left_iris_coords, axis=0)
-        right_center = np.mean(right_iris_coords, axis=0)
+        left_iris_center = np.mean(left_iris_coords, axis=0)
+        right_iris_center = np.mean(right_iris_coords, axis=0)
         
-        # Average both eyes for gaze direction
-        gaze_x = (left_center[0] + right_center[0]) / 2
-        gaze_y = (left_center[1] + right_center[1]) / 2
+        # Calculate iris position WITHIN the eye (horizontal: 0=left, 0.5=center, 1=right)
+        left_eye_width = abs(left_eye_right.x - left_eye_left.x)
+        right_eye_width = abs(right_eye_right.x - right_eye_left.x)
         
-        return gaze_x, gaze_y
+        left_iris_x_ratio = (left_iris_center[0] - left_eye_left.x) / left_eye_width if left_eye_width > 0 else 0.5
+        right_iris_x_ratio = (right_iris_center[0] - right_eye_left.x) / right_eye_width if right_eye_width > 0 else 0.5
+        
+        # Calculate iris position WITHIN the eye (vertical: 0=top, 0.5=center, 1=bottom)
+        left_eye_height = abs(left_eye_bottom.y - left_eye_top.y)
+        right_eye_height = abs(right_eye_bottom.y - right_eye_top.y)
+        
+        left_iris_y_ratio = (left_iris_center[1] - left_eye_top.y) / left_eye_height if left_eye_height > 0 else 0.5
+        right_iris_y_ratio = (right_iris_center[1] - right_eye_top.y) / right_eye_height if right_eye_height > 0 else 0.5
+        
+        # Average both eyes for gaze direction (0.5 = center, independent of face position)
+        gaze_x = (left_iris_x_ratio + right_iris_x_ratio) / 2
+        gaze_y = (left_iris_y_ratio + right_iris_y_ratio) / 2
+        
+        # Calculate head orientation (tilt) based on eye line angle
+        # If face tilts right, right eye goes up relative to left eye
+        left_eye_center_y = (left_eye_top.y + left_eye_bottom.y) / 2
+        right_eye_center_y = (right_eye_top.y + right_eye_bottom.y) / 2
+        head_tilt_lr = right_eye_center_y - left_eye_center_y  # Positive = tilted right
+        
+        # Calculate head pitch (up/down tilt) based on nose-to-eye distance
+        nose_tip = face_landmarks.landmark[1]
+        forehead = face_landmarks.landmark[10]
+        chin = face_landmarks.landmark[152]
+        
+        # Ratio of nose position between forehead and chin (0.5 = neutral)
+        face_height = abs(chin.y - forehead.y)
+        nose_ratio = (nose_tip.y - forehead.y) / face_height if face_height > 0 else 0.5
+        
+        # Get face center for visualization
+        face_center = [nose_tip.x, nose_tip.y]
+        
+        # Store points for visualization
+        viz_points = {
+            'left_iris': left_iris_center,
+            'right_iris': right_iris_center,
+            'face_center': face_center,
+            'left_eye_left': [left_eye_left.x, left_eye_left.y],
+            'left_eye_right': [left_eye_right.x, left_eye_right.y],
+            'left_eye_top': [left_eye_top.x, left_eye_top.y],
+            'left_eye_bottom': [left_eye_bottom.x, left_eye_bottom.y],
+            'right_eye_left': [right_eye_left.x, right_eye_left.y],
+            'right_eye_right': [right_eye_right.x, right_eye_right.y],
+            'right_eye_top': [right_eye_top.x, right_eye_top.y],
+            'right_eye_bottom': [right_eye_bottom.x, right_eye_bottom.y],
+            'forehead': [forehead.x, forehead.y],
+            'chin': [chin.x, chin.y],
+            'head_tilt_lr': head_tilt_lr,
+            'nose_ratio': nose_ratio
+        }
+        
+        return gaze_x, gaze_y, viz_points
     
     def detect_blink(self, face_landmarks):
         """
-        Detect if eyes are blinking using Eye Aspect Ratio
+        Detect eye openness using Eye Aspect Ratio (continuous 0-1, not binary)
+        Returns openness ratio and EAR value
         """
         # Left eye landmarks
         left_eye = [362, 385, 387, 263, 373, 380]
@@ -148,10 +211,14 @@ class EyeTracker:
         # Average EAR
         ear = (left_ear + right_ear) / 2.0
         
-        # Check if blinking
-        is_blinking = ear < self.blink_threshold
+        # Convert EAR to continuous openness (0=closed, 1=fully open)
+        # Typical EAR range: 0.15 (closed) to 0.3 (open)
+        min_ear = 0.15
+        max_ear = 0.30
+        openness = (ear - min_ear) / (max_ear - min_ear)
+        openness = max(0.0, min(1.0, openness))  # Clamp to 0-1
         
-        return is_blinking, ear
+        return openness, ear
     
     def map_to_servo_angle(self, gaze_x, gaze_y):
         """
@@ -265,43 +332,78 @@ class EyeTracker:
                 #     frame, face_landmarks, self.mp_face_mesh.FACEMESH_CONTOURS,
                 #     self.drawing_spec, self.drawing_spec)
                 
-                # Get gaze position
-                gaze_x, gaze_y = self.get_gaze_position(face_landmarks, frame.shape[1], frame.shape[0])
+                # Get gaze position and head orientation (face-relative, not image-relative)
+                gaze_x, gaze_y, viz_points = self.get_gaze_position(face_landmarks, frame.shape[1], frame.shape[0])
                 
-                # Detect blink
-                is_blinking, ear = self.detect_blink(face_landmarks)
+                # Detect eye openness (continuous, not binary)
+                eye_openness, ear = self.detect_blink(face_landmarks)
                 
-                # Map gaze to servo angles
-                gaze_lr, _ = self.map_to_servo_angle(gaze_x, gaze_y)
+                # Map gaze to servo angles (gaze_x and gaze_y are now 0-1 ratios within eye)
+                # Center is 0.5, so we map to servo range
+                eye_lr_angle = int(90 + (gaze_x - 0.5) * 60)  # 0.5 ± range maps to 90 ± 30
+                eye_lr_angle = max(60, min(120, eye_lr_angle))
                 
                 # Servo 1 & 2: Left and Right Eyeball LR (60-120 degrees)
-                eye_left_lr = int(gaze_lr)
-                eye_right_lr = int(gaze_lr)
-                eye_left_lr = max(60, min(120, eye_left_lr))
-                eye_right_lr = max(60, min(120, eye_right_lr))
+                # Both eyes move together to mirror your eye movement
+                eye_left_lr = eye_lr_angle
+                eye_right_lr = eye_lr_angle
                 
-                # Servo 3 & 4: Left and Right Eyelid (70-120 degrees, 120=open, 70=closed)
-                eyelid_left = 70 if is_blinking else 120
-                eyelid_right = 70 if is_blinking else 120
+                # Servo 3 & 4: Left and Right Eyelid (70-120 degrees, continuous based on openness)
+                # openness: 1.0=fully open (120°), 0.0=fully closed (70°)
+                eyelid_left = int(70 + (eye_openness * 50))  # Maps 0-1 to 70-120
+                eyelid_right = int(70 + (eye_openness * 50))
+                eyelid_left = max(70, min(120, eyelid_left))
+                eyelid_right = max(70, min(120, eyelid_right))
                 
-                # Servo 5 & 6: Head Tilt (left and right servo at bottom of eyes)
-                # Both servos control head tilt: up+up=head up, left up+right down=tilt right, etc.
-                # Map vertical gaze to head tilt
-                norm_y = (gaze_y - self.calibration['center_y']) / self.calibration['range_y']
-                norm_y = max(-1, min(1, norm_y))
+                # Servo 5 & 6: Head Tilt based on FACE ORIENTATION, not position in image
+                # Uses vertical gaze within eye (0.5 = center, <0.5 = looking up, >0.5 = looking down)
+                pitch_offset = (gaze_y - 0.5) * 60  # ±30 degrees
                 
-                tilt_base = 90  # Center position
-                tilt_range = 30  # ±30 degrees range
+                # Also incorporate face pitch from nose ratio
+                face_pitch = (viz_points['nose_ratio'] - 0.5) * 40  # Additional pitch from face angle
                 
-                # Looking up: both servos up, Looking down: both servos down
-                tilt_left = int(tilt_base + (norm_y * tilt_range * 0.5))  # 50% of gaze
-                tilt_right = int(tilt_base + (norm_y * tilt_range * 0.5))
+                # Combine eye gaze and face pitch
+                total_pitch = pitch_offset + face_pitch
+                
+                tilt_left = int(90 + total_pitch)
+                tilt_right = int(90 + total_pitch)
                 tilt_left = max(60, min(120, tilt_left))
                 tilt_right = max(60, min(120, tilt_right))
                 
-                # Servo 7: Head Rotation LR (follows horizontal gaze)
-                head_rotate = int(gaze_lr)  # Same as eyeball LR
-                head_rotate = max(60, min(120, head_rotate))
+                # Servo 7: Head Rotation LR (mirrors horizontal gaze)
+                head_rotate = eye_lr_angle  # Same as eyeball movement
+                
+                # Draw visualization points on frame
+                frame_h, frame_w = frame.shape[:2]
+                
+                # Draw left iris (green)
+                left_iris_px = (int(viz_points['left_iris'][0] * frame_w), 
+                               int(viz_points['left_iris'][1] * frame_h))
+                cv2.circle(frame, left_iris_px, 5, (0, 255, 0), -1)
+                
+                # Draw right iris (green)
+                right_iris_px = (int(viz_points['right_iris'][0] * frame_w), 
+                                int(viz_points['right_iris'][1] * frame_h))
+                cv2.circle(frame, right_iris_px, 5, (0, 255, 0), -1)
+                
+                # Draw face center/nose (magenta)
+                face_center_px = (int(viz_points['face_center'][0] * frame_w), 
+                                 int(viz_points['face_center'][1] * frame_h))
+                cv2.circle(frame, face_center_px, 8, (255, 0, 255), -1)
+                
+                # Draw forehead and chin (cyan)
+                forehead_px = (int(viz_points['forehead'][0] * frame_w), 
+                              int(viz_points['forehead'][1] * frame_h))
+                chin_px = (int(viz_points['chin'][0] * frame_w), 
+                          int(viz_points['chin'][1] * frame_h))
+                cv2.circle(frame, forehead_px, 4, (255, 255, 0), -1)
+                cv2.circle(frame, chin_px, 4, (255, 255, 0), -1)
+                
+                # Draw eye boundaries (yellow)
+                for key in ['left_eye_left', 'left_eye_right', 'left_eye_top', 'left_eye_bottom',
+                           'right_eye_left', 'right_eye_right', 'right_eye_top', 'right_eye_bottom']:
+                    px = (int(viz_points[key][0] * frame_w), int(viz_points[key][1] * frame_h))
+                    cv2.circle(frame, px, 2, (0, 255, 255), -1)
                 
                 # Send to ESP32
                 self.send_to_esp32(eye_left_lr, eye_right_lr, eyelid_left, eyelid_right, 
@@ -312,9 +414,9 @@ class EyeTracker:
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
                 cv2.putText(frame, f"S2 Eye Right LR:   {eye_right_lr:3d}", (10, 75), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                cv2.putText(frame, f"S3 Eyelid Left:    {eyelid_left:3d}", (10, 110), 
+                cv2.putText(frame, f"S3 Eyelid Left:    {eyelid_left:3d} [{eye_openness:.2f}]", (10, 110), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
-                cv2.putText(frame, f"S4 Eyelid Right:   {eyelid_right:3d}", (10, 145), 
+                cv2.putText(frame, f"S4 Eyelid Right:   {eyelid_right:3d} [{eye_openness:.2f}]", (10, 145), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
                 cv2.putText(frame, f"S5 Tilt Left:      {tilt_left:3d}", (10, 180), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
@@ -322,6 +424,12 @@ class EyeTracker:
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
                 cv2.putText(frame, f"S7 Head Rotate:    {head_rotate:3d}", (10, 250), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 128, 0), 2)
+                
+                # Add legend and debug info
+                cv2.putText(frame, "Green: Iris | Magenta: Nose | Yellow: Face/Eye Points", 
+                           (10, frame_h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cv2.putText(frame, f"Gaze: X={gaze_x:.2f} Y={gaze_y:.2f} | Face Pitch={viz_points['nose_ratio']:.2f}", 
+                           (10, frame_h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                 
                 # Calibration mode display
                 if self.calibration_mode:
@@ -343,7 +451,7 @@ class EyeTracker:
                 if not self.calibration_mode:
                     self.calibrate()
                 elif results.multi_face_landmarks:
-                    gaze_x, gaze_y = self.get_gaze_position(
+                    gaze_x, gaze_y, _ = self.get_gaze_position(
                         results.multi_face_landmarks[0], 
                         frame.shape[1], frame.shape[0]
                     )
@@ -352,7 +460,7 @@ class EyeTracker:
                     print(f"Center set to: X={gaze_x:.3f}, Y={gaze_y:.3f}")
             elif key == ord('l') or key == ord('L'):
                 if self.calibration_mode and results.multi_face_landmarks:
-                    gaze_x, _ = self.get_gaze_position(
+                    gaze_x, _, _ = self.get_gaze_position(
                         results.multi_face_landmarks[0], 
                         frame.shape[1], frame.shape[0]
                     )
@@ -361,7 +469,7 @@ class EyeTracker:
                     self.calibration_points.append(('left', left_range))
             elif key == ord('r') or key == ord('R'):
                 if self.calibration_mode and results.multi_face_landmarks:
-                    gaze_x, _ = self.get_gaze_position(
+                    gaze_x, _, _ = self.get_gaze_position(
                         results.multi_face_landmarks[0], 
                         frame.shape[1], frame.shape[0]
                     )
@@ -370,7 +478,7 @@ class EyeTracker:
                     self.calibration_points.append(('right', right_range))
             elif key == ord('u') or key == ord('U'):
                 if self.calibration_mode and results.multi_face_landmarks:
-                    _, gaze_y = self.get_gaze_position(
+                    _, gaze_y, _ = self.get_gaze_position(
                         results.multi_face_landmarks[0], 
                         frame.shape[1], frame.shape[0]
                     )
@@ -379,7 +487,7 @@ class EyeTracker:
                     self.calibration_points.append(('up', up_range))
             elif key == ord('d') or key == ord('D'):
                 if self.calibration_mode and results.multi_face_landmarks:
-                    _, gaze_y = self.get_gaze_position(
+                    _, gaze_y, _ = self.get_gaze_position(
                         results.multi_face_landmarks[0], 
                         frame.shape[1], frame.shape[0]
                     )
