@@ -57,10 +57,10 @@ float currentTiltLeft = 90.0;
 float currentTiltRight = 90.0;
 float currentHeadRotate = 90.0;
 
-// Smoothing parameter (0.1 = smooth, 0.9 = responsive)
-const float smoothing = 0.5;       // For eyes (medium fast)
-const float smoothingHead = 0.6;   // For head and tilt (faster)
-const float smoothingEyelid = 0.9; // Very fast for eyelids
+// Smoothing parameter (lower = smoother, 0.1 = very smooth, 0.9 = very responsive)
+const float smoothing = 0.25;      // For eyes (smooth)
+const float smoothingHead = 0.20;  // For head and tilt (very smooth)
+const float smoothingEyelid = 0.35; // For eyelids (moderate, reduce jitter)
 
 // Timeout settings
 unsigned long lastUpdateTime = 0;
@@ -288,16 +288,18 @@ void updatePosition(int s1, int s2, int s3, int s4, int s5, int s6, int s7) {
   smooth6 = constrain(smooth6, servoLimits[5].min, servoLimits[5].max);
   smooth7 = constrain(smooth7, servoLimits[6].min, servoLimits[6].max);
   
-  // Update current positions
-  currentEyeLeftLR = smooth1;
-  currentEyeRightLR = smooth2;
-  currentEyelidLeft = smooth3;
-  currentEyelidRight = smooth4;
-  currentTiltLeft = smooth5;
-  currentTiltRight = smooth6;
-  currentHeadRotate = smooth7;
+  // Apply deadband filter to reduce micro-jitter (only update if change > 0.5 degrees)
+  const float deadband = 0.5;
   
-  // Write to servos
+  if (abs(smooth1 - currentEyeLeftLR) > deadband) currentEyeLeftLR = smooth1;
+  if (abs(smooth2 - currentEyeRightLR) > deadband) currentEyeRightLR = smooth2;
+  if (abs(smooth3 - currentEyelidLeft) > deadband) currentEyelidLeft = smooth3;
+  if (abs(smooth4 - currentEyelidRight) > deadband) currentEyelidRight = smooth4;
+  if (abs(smooth5 - currentTiltLeft) > deadband) currentTiltLeft = smooth5;
+  if (abs(smooth6 - currentTiltRight) > deadband) currentTiltRight = smooth6;
+  if (abs(smooth7 - currentHeadRotate) > deadband) currentHeadRotate = smooth7;
+  
+  // Write to servos (only integer angles sent to servos, further reducing jitter)
   setServoAngle(servoEyeLeftLR, (int)currentEyeLeftLR);
   setServoAngle(servoEyeRightLR, (int)currentEyeRightLR);
   setServoAngle(servoEyelidLeft, (int)currentEyelidLeft);

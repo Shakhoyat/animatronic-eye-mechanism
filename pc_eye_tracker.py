@@ -70,10 +70,26 @@ class EyeTracker:
         # Previous positions for smoothing
         self.prev_lr = 90
         self.prev_ud = 90
+        self.prev_tilt_left = 90
+        self.prev_tilt_right = 90
+        self.prev_head_rotate = 90
+        self.prev_eyelid_left = 120
+        self.prev_eyelid_right = 120
+        
+        # Enhanced smoothing factors
+        self.eye_smoothing = 0.15      # Very smooth for eyes (lower = smoother)
+        self.head_smoothing = 0.08     # Even smoother for head
+        self.eyelid_smoothing = 0.25   # Moderate for eyelids
+        
+        # Moving average buffers for extra stability
+        self.gaze_x_buffer = []
+        self.gaze_y_buffer = []
+        self.buffer_size = 5  # Average last 5 frames
         
         # Blink detection
         self.blink_threshold = 0.2  # Adjust based on your eye
         self.prev_blink = False
+        self.prev_eye_openness = 1.0  # Track previous openness for smoothing
         
         # FPS calculation
         self.prev_time = time.time()
@@ -191,7 +207,7 @@ class EyeTracker:
     def detect_blink(self, face_landmarks):
         """
         Detect eye openness using Eye Aspect Ratio (continuous 0-1, not binary)
-        Returns openness ratio and EAR value
+        Returns openness ratio and EAR value with improved scaling
         """
         # Left eye landmarks
         left_eye = [362, 385, 387, 263, 373, 380]
@@ -211,12 +227,26 @@ class EyeTracker:
         # Average EAR
         ear = (left_ear + right_ear) / 2.0
         
-        # Convert EAR to continuous openness (0=closed, 1=fully open)
-        # Typical EAR range: 0.15 (closed) to 0.3 (open)
-        min_ear = 0.15
-        max_ear = 0.30
+        # Convert EAR to continuous openness with better scaling
+        # Expanded range and non-linear scaling to reduce jitter in mid-range
+        min_ear = 0.12  # More sensitive to closing
+        max_ear = 0.35  # More sensitive to opening
+        
+        # Linear mapping
         openness = (ear - min_ear) / (max_ear - min_ear)
-        openness = max(0.0, min(1.0, openness))  # Clamp to 0-1
+        openness = max(0.0, min(1.0, openness))
+        
+        # Apply sigmoid-like curve to reduce sensitivity in middle range (0.3-0.7)
+        # This reduces jitter when eyes are partially open
+        if 0.2 < openness < 0.8:
+            # Compress middle range slightly
+            center = 0.5
+            compressed = center + (openness - center) * 0.7
+            openness = compressed
+        
+        # Apply exponential smoothing to reduce jitter
+        openness = self.prev_eye_openness + (openness - self.prev_eye_openness) * self.eyelid_smoothing
+        self.prev_eye_openness = openness
         
         return openness, ear
     
@@ -333,29 +363,61 @@ class EyeTracker:
                 #     self.drawing_spec, self.drawing_spec)
                 
                 # Get gaze position and head orientation (face-relative, not image-relative)
-                gaze_x, gaze_y, viz_points = self.get_gaze_position(face_landmarks, frame.shape[1], frame.shape[0])
+                gaze_x_raw, gaze_y_raw, viz_points = self.get_gaze_position(face_landmarks, frame.shape[1], frame.shape[0])
+                
+                # Apply moving average filter to reduce jitter
+                self.gaze_x_buffer.append(gaze_x_raw)
+                self.gaze_y_buffer.append(gaze_y_raw)
+                if len(self.gaze_x_buffer) > self.buffer_size:
+                    self.gaze_x_buffer.pop(0)
+                    self.gaze_y_buffer.pop(0)
+                
+                gaze_x = sum(self.gaze_x_buffer) / len(self.gaze_x_buffer)
+                gaze_y = sum(self.gaze_y_buffer) / len(self.gaze_y_buffer)
                 
                 # Detect eye openness (continuous, not binary)
                 eye_openness, ear = self.detect_blink(face_landmarks)
                 
-                # Map gaze to servo angles (gaze_x and gaze_y are now 0-1 ratios within eye)
+                # Map gaze to servo angles with heavy smoothing
                 # Center is 0.5, so we map to servo range
-                eye_lr_angle = int(90 + (gaze_x - 0.5) * 60)  # 0.5 ± range maps to 90 ± 30
-                eye_lr_angle = max(60, min(120, eye_lr_angle))
+                eye_lr_target = 90 + (gaze_x - 0.5) * 60  # 0.5 ± range maps to 90 ± 30
+                
+                # Apply exponential smoothing to reduce jitter
+                eye_lr_angle = self.prev_lr + (eye_lr_target - self.prev_lr) * self.eye_smoothing
+                self.prev_lr = eye_lr_angle
+                eye_lr_angle = int(max(60, min(120, eye_lr_angle)))
                 
                 # Servo 1 & 2: Left and Right Eyeball LR (60-120 degrees)
                 # Both eyes move together to mirror your eye movement
                 eye_left_lr = eye_lr_angle
                 eye_right_lr = eye_lr_angle
                 
-                # Servo 3 & 4: Left and Right Eyelid (70-120 degrees, continuous based on openness)
-                # openness: 1.0=fully open (120°), 0.0=fully closed (70°)
-                eyelid_left = int(70 + (eye_openness * 50))  # Maps 0-1 to 70-120
-                eyelid_right = int(70 + (eye_openness * 50))
-                eyelid_left = max(70, min(120, eyelid_left))
-                eyelid_right = max(70, min(120, eyelid_right))
+                # Servo 3 & 4: Left and Right Eyelid with better scaling
+                # Use power curve to make middle range less sensitive
+                # This reduces the 80-110 jitter issue
+                if eye_openness > 0.8:
+                    # Fully open: map 0.8-1.0 to 105-120 (wider range at top)
+                    scaled_openness = 0.7 + (eye_openness - 0.8) * 1.5
+                elif eye_openness < 0.2:
+                    # Fully closed: map 0.0-0.2 to 70-85 (wider range at bottom)
+                    scaled_openness = eye_openness * 0.75
+                else:
+                    # Middle range: compress 0.2-0.8 to more stable values
+                    scaled_openness = 0.15 + (eye_openness - 0.2) * 0.92
                 
-                # Servo 5 & 6: Head Tilt based on FACE ORIENTATION, not position in image
+                eyelid_target_left = 70 + (scaled_openness * 50)
+                eyelid_target_right = 70 + (scaled_openness * 50)
+                
+                # Apply smoothing to eyelids (already smoothed in detect_blink, but add more)
+                eyelid_left = self.prev_eyelid_left + (eyelid_target_left - self.prev_eyelid_left) * 0.3
+                eyelid_right = self.prev_eyelid_right + (eyelid_target_right - self.prev_eyelid_right) * 0.3
+                self.prev_eyelid_left = eyelid_left
+                self.prev_eyelid_right = eyelid_right
+                
+                eyelid_left = int(max(70, min(120, eyelid_left)))
+                eyelid_right = int(max(70, min(120, eyelid_right)))
+                
+                # Servo 5 & 6: Head Tilt based on FACE ORIENTATION with smoothing
                 # Uses vertical gaze within eye (0.5 = center, <0.5 = looking up, >0.5 = looking down)
                 pitch_offset = (gaze_y - 0.5) * 60  # ±30 degrees
                 
@@ -363,15 +425,23 @@ class EyeTracker:
                 face_pitch = (viz_points['nose_ratio'] - 0.5) * 40  # Additional pitch from face angle
                 
                 # Combine eye gaze and face pitch
-                total_pitch = pitch_offset + face_pitch
+                total_pitch_target = pitch_offset + face_pitch
                 
-                tilt_left = int(90 + total_pitch)
-                tilt_right = int(90 + total_pitch)
-                tilt_left = max(60, min(120, tilt_left))
-                tilt_right = max(60, min(120, tilt_right))
+                # Apply heavy smoothing to head tilt
+                tilt_target = 90 + total_pitch_target
+                tilt_left_smooth = self.prev_tilt_left + (tilt_target - self.prev_tilt_left) * self.head_smoothing
+                tilt_right_smooth = self.prev_tilt_right + (tilt_target - self.prev_tilt_right) * self.head_smoothing
+                self.prev_tilt_left = tilt_left_smooth
+                self.prev_tilt_right = tilt_right_smooth
                 
-                # Servo 7: Head Rotation LR (mirrors horizontal gaze)
-                head_rotate = eye_lr_angle  # Same as eyeball movement
+                tilt_left = int(max(60, min(120, tilt_left_smooth)))
+                tilt_right = int(max(60, min(120, tilt_right_smooth)))
+                
+                # Servo 7: Head Rotation LR with smoothing
+                head_rotate_target = eye_lr_angle
+                head_rotate_smooth = self.prev_head_rotate + (head_rotate_target - self.prev_head_rotate) * self.head_smoothing
+                self.prev_head_rotate = head_rotate_smooth
+                head_rotate = int(max(60, min(120, head_rotate_smooth)))
                 
                 # Draw visualization points on frame
                 frame_h, frame_w = frame.shape[:2]
