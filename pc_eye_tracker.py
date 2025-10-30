@@ -298,24 +298,30 @@ class EyeTracker:
                 tilt_ud = max(70, min(110, tilt_ud))
                 head_rotate = max(45, min(135, head_rotate))
                 
+                # Calculate eyelid positions based on blink state
+                # When blinking: eyelids close (top goes down, bottom goes up)
+                # When not blinking: eyelids open (both at neutral)
+                eyelid_top = 10 if is_blinking else 170  # Servo 3: Top eyelid
+                eyelid_bottom = 170 if is_blinking else 10  # Servo 4: Bottom eyelid
+                
                 # Send to ESP32
                 self.send_to_esp32(lr_angle, ud_angle, is_blinking)
                 
-                # Display only the 7 servo values in degrees
-                cv2.putText(frame, f"Eyeball LR: {lr_angle}deg", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                cv2.putText(frame, f"Eyeball UD: {ud_angle}deg", (10, 60), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                cv2.putText(frame, f"Tilt LR: {tilt_lr}deg", (10, 90), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                cv2.putText(frame, f"Tilt UD: {tilt_ud}deg", (10, 120), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-                cv2.putText(frame, f"Head Rotate: {head_rotate}deg", (10, 150), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 128, 0), 2)
-                cv2.putText(frame, f"Blink L: {1 if is_blinking else 0}", (10, 180), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255) if is_blinking else (0, 255, 0), 2)
-                cv2.putText(frame, f"Blink R: {1 if is_blinking else 0}", (10, 210), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255) if is_blinking else (0, 255, 0), 2)
+                # Display exactly 7 servo values in degrees
+                cv2.putText(frame, f"Servo 1 (Eyeball LR):  {lr_angle:3d}", (10, 40), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                cv2.putText(frame, f"Servo 2 (Eyeball UD):  {ud_angle:3d}", (10, 75), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                cv2.putText(frame, f"Servo 3 (Eyelid Top):  {eyelid_top:3d}", (10, 110), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+                cv2.putText(frame, f"Servo 4 (Eyelid Bot):  {eyelid_bottom:3d}", (10, 145), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+                cv2.putText(frame, f"Servo 5 (Tilt LR):     {tilt_lr:3d}", (10, 180), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+                cv2.putText(frame, f"Servo 6 (Tilt UD):     {tilt_ud:3d}", (10, 215), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+                cv2.putText(frame, f"Servo 7 (Head Rotate): {head_rotate:3d}", (10, 250), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 128, 0), 2)
                 
                 # Calibration mode display
                 if self.calibration_mode:
