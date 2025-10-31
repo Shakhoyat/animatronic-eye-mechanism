@@ -94,6 +94,10 @@ while cap.isOpened():
             NOSE_CENTER = 1
             LEFT_IRIS = 473
             RIGHT_IRIS = 468
+            
+            # Face rotation landmarks
+            LEFT_FACE_EDGE = 234   # Left edge of face
+            RIGHT_FACE_EDGE = 454  # Right edge of face
 
             # Coordinates
             left_upper = (int(face_landmarks.landmark[LEFT_UPPER].x * w),
@@ -110,6 +114,12 @@ while cap.isOpened():
                          int(face_landmarks.landmark[LEFT_IRIS].y * h))
             right_iris = (int(face_landmarks.landmark[RIGHT_IRIS].x * w),
                           int(face_landmarks.landmark[RIGHT_IRIS].y * h))
+            
+            # Face rotation reference points
+            left_face = (int(face_landmarks.landmark[LEFT_FACE_EDGE].x * w),
+                        int(face_landmarks.landmark[LEFT_FACE_EDGE].y * h))
+            right_face = (int(face_landmarks.landmark[RIGHT_FACE_EDGE].x * w),
+                         int(face_landmarks.landmark[RIGHT_FACE_EDGE].y * h))
 
             # --- Eyelid Gaps ---
             left_gap = calc_distance(left_upper, left_lower)
@@ -149,16 +159,27 @@ while cap.isOpened():
             right_iris_center_dist = abs(right_iris[0] - face_center_x)
             
             # --- Face Rotation (Left-Right) Detection ---
-            # Calculate nose position relative to center (negative = left, positive = right)
-            nose_horizontal_offset = nose[0] - face_center_x
+            # Calculate distance from nose to each side of face
+            left_side_dist = calc_distance(nose, left_face)
+            right_side_dist = calc_distance(nose, right_face)
             
+            # Calculate rotation ratio (independent of position)
+            # When face turns left: left_side_dist increases, right_side_dist decreases
+            # When face turns right: left_side_dist decreases, right_side_dist increases
+            total_dist = left_side_dist + right_side_dist
+            if total_dist > 0:
+                rotation_ratio = (right_side_dist - left_side_dist) / total_dist
+            else:
+                rotation_ratio = 0
+            
+            # rotation_ratio ranges approximately from -0.5 (left) to +0.5 (right)
             # Map face rotation to servo angle (0 = full left, 90 = center, 180 = full right)
-            face_rotation_servo = map_range(nose_horizontal_offset, face_rotation_left_max, face_rotation_right_max,
+            face_rotation_servo = map_range(rotation_ratio, -0.5, 0.5,
                                            rotation_servo_min, rotation_servo_max)
             
             print(f"Left: baseline={left_iris_baseline_dist:.1f}px → {left_baseline_servo_angle:.1f}°")
             print(f"Right: baseline={right_iris_baseline_dist:.1f}px → {right_baseline_servo_angle:.1f}°")
-            print(f"Face Rotation: offset={nose_horizontal_offset:.1f}px → {face_rotation_servo:.1f}°")
+            print(f"Face Rotation: ratio={rotation_ratio:.3f} → {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
 
             smoothed_left_eye_nose =  left_eye_nose
             smoothed_right_eye_nose =  right_eye_nose
@@ -202,11 +223,11 @@ while cap.isOpened():
             cv2.line(frame, left_iris, (left_iris[0], FIXED_BASELINE_Y), (0, 255, 255), 1)
             cv2.line(frame, right_iris, (right_iris[0], FIXED_BASELINE_Y), (255, 0, 255), 1)
             
-            # Draw face rotation indicator (horizontal line from nose showing rotation)
-            rotation_indicator_length = int(abs(nose_horizontal_offset))
-            rotation_end_x = nose[0] + rotation_indicator_length if nose_horizontal_offset > 0 else nose[0] - rotation_indicator_length
-            cv2.line(frame, nose, (rotation_end_x, nose[1]), (255, 128, 0), 2)  # Orange line
-            cv2.circle(frame, (face_center_x, nose[1]), 3, (255, 128, 0), -1)  # Center reference point
+            # Draw face rotation indicator (lines from nose to face edges)
+            cv2.line(frame, nose, left_face, (255, 128, 0), 1)   # Orange line to left face edge
+            cv2.line(frame, nose, right_face, (255, 128, 0), 1)  # Orange line to right face edge
+            cv2.circle(frame, left_face, 3, (255, 128, 0), -1)   # Left face reference point
+            cv2.circle(frame, right_face, 3, (255, 128, 0), -1)  # Right face reference point
 
             # --- Display Text ---
             cv2.putText(frame, f"Lid Left: {left_lid_mapped:.1f}", (30, 40),
