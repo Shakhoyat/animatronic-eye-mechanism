@@ -1,6 +1,9 @@
 import cv2
 import mediapipe as mp
 import math
+import serial
+import serial.tools.list_ports
+import time
 
 # Initialize FaceMesh
 mp_face_mesh = mp.solutions.face_mesh
@@ -58,6 +61,33 @@ rotation_ratio_right_max = 0.3   # Full right rotation
 # Servo angle mapping for face rotation (left-right movement)
 rotation_servo_min = 0     # Full left rotation
 rotation_servo_max = 180   # Full right rotation
+
+# --- Serial Communication Setup ---
+def find_esp32_port():
+    """Find and return the ESP32 COM port"""
+    ports = serial.tools.list_ports.comports()
+    for port in ports:
+        if 'USB' in port.description or 'CH340' in port.description or 'CP210' in port.description:
+            return port.device
+    # If no specific port found, return None
+    return None
+
+# Try to establish serial connection
+esp32_port = find_esp32_port()
+ser = None
+
+if esp32_port:
+    try:
+        ser = serial.Serial(esp32_port, 115200, timeout=1)
+        time.sleep(2)  # Wait for connection to stabilize
+        print(f"Connected to ESP32 on {esp32_port}")
+    except Exception as e:
+        print(f"Could not connect to ESP32: {e}")
+        ser = None
+else:
+    print("ESP32 not found. Available ports:")
+    for port in serial.tools.list_ports.comports():
+        print(f"  {port.device}: {port.description}")
 
 # Webcam
 cap = cv2.VideoCapture(0)
@@ -185,6 +215,16 @@ while cap.isOpened():
             print(f"Left: baseline={left_iris_baseline_dist:.1f}px → {left_baseline_servo_angle:.1f}°")
             print(f"Right: baseline={right_iris_baseline_dist:.1f}px → {right_baseline_servo_angle:.1f}°")
             print(f"Face Rotation: ratio={smoothed_rotation_ratio:.3f} → {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
+            
+            # --- Send Data to ESP32 via Serial ---
+            if ser and ser.is_open:
+                # Format: L_LID,R_LID,L_BASE,R_BASE,ROTATION\n
+                data_string = f"{int(left_lid_mapped)},{int(right_lid_mapped)},{int(left_baseline_servo_angle)},{int(right_baseline_servo_angle)},{int(face_rotation_servo)}\n"
+                try:
+                    ser.write(data_string.encode())
+                    print(f"Sent to ESP32: {data_string.strip()}")
+                except Exception as e:
+                    print(f"Error sending data: {e}")
 
             smoothed_left_eye_nose =  left_eye_nose
             smoothed_right_eye_nose =  right_eye_nose
@@ -273,3 +313,8 @@ while cap.isOpened():
 
 cap.release()
 cv2.destroyAllWindows()
+
+# Close serial connection
+if ser and ser.is_open:
+    ser.close()
+    print("Serial connection closed")
