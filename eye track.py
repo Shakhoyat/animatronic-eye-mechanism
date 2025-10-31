@@ -231,10 +231,9 @@ while cap.isOpened():
                 "rotation_ratio": round(smoothed_rotation_ratio, 3)
             }
             
-            print(f"Left: baseline={left_iris_baseline_dist:.1f}px → {left_baseline_servo_angle:.1f}°")
-            print(f"Right: baseline={right_iris_baseline_dist:.1f}px → {right_baseline_servo_angle:.1f}°")
-            print(f"Face Rotation: ratio={smoothed_rotation_ratio:.3f} → {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
-            
+            print(f"Left: baseline={left_iris_baseline_dist:.1f}px -> {left_baseline_servo_angle:.1f}°")
+            print(f"Right: baseline={right_iris_baseline_dist:.1f}px -> {right_baseline_servo_angle:.1f}°")
+            print(f"Face Rotation: ratio={smoothed_rotation_ratio:.3f} -> {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
             # --- Send Data to ESP32 via Serial as JSON ---
             if ser and ser.is_open:
                 json_string = json.dumps(data_json) + "\n"
