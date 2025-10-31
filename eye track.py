@@ -51,8 +51,9 @@ baseline_servo_min = 90   # 90 degrees
 baseline_servo_max = 270  # 270 degrees
 
 # Face rotation (left-right) detection range
-face_rotation_left_max = -80   # nose far left from center
-face_rotation_right_max = 80   # nose far right from center
+# Rotation ratio typically ranges from -0.3 to +0.3 for natural head rotation
+rotation_ratio_left_max = -0.3   # Full left rotation
+rotation_ratio_right_max = 0.3   # Full right rotation
 
 # Servo angle mapping for face rotation (left-right movement)
 rotation_servo_min = 0     # Full left rotation
@@ -73,6 +74,7 @@ FIXED_CENTER_X = 320   # Fixed vertical center line
 # Smoothing vars
 smoothed_left_lid = smoothed_right_lid = None
 smoothed_left_eye_nose = smoothed_right_eye_nose = None
+smoothed_rotation_ratio = None
 
 while cap.isOpened():
     success, frame = cap.read()
@@ -172,14 +174,17 @@ while cap.isOpened():
             else:
                 rotation_ratio = 0
             
-            # rotation_ratio ranges approximately from -0.5 (left) to +0.5 (right)
-            # Map face rotation to servo angle (0 = full left, 90 = center, 180 = full right)
-            face_rotation_servo = map_range(rotation_ratio, -0.5, 0.5,
+            # Apply smoothing to rotation ratio for more gradual changes
+            smoothed_rotation_ratio = smooth(smoothed_rotation_ratio, rotation_ratio, alpha=0.2)
+            
+            # Map face rotation to servo angle with calibrated range
+            # rotation_ratio ranges approximately from -0.3 (left) to +0.3 (right) for natural rotation
+            face_rotation_servo = map_range(smoothed_rotation_ratio, rotation_ratio_left_max, rotation_ratio_right_max,
                                            rotation_servo_min, rotation_servo_max)
             
             print(f"Left: baseline={left_iris_baseline_dist:.1f}px → {left_baseline_servo_angle:.1f}°")
             print(f"Right: baseline={right_iris_baseline_dist:.1f}px → {right_baseline_servo_angle:.1f}°")
-            print(f"Face Rotation: ratio={rotation_ratio:.3f} → {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
+            print(f"Face Rotation: ratio={smoothed_rotation_ratio:.3f} → {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
 
             smoothed_left_eye_nose =  left_eye_nose
             smoothed_right_eye_nose =  right_eye_nose
