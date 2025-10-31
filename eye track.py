@@ -42,6 +42,22 @@ right_eye_servo_max = 155
 eye_nose_min = 90     # near (eye moves inward)
 eye_nose_max = 155     # far (eye moves outward)
 
+# Baseline distance range (iris to bottom baseline)
+baseline_dist_min = 100    # minimum distance from iris to baseline (adjust based on your setup)
+baseline_dist_max = 250   # maximum distance from iris to baseline (adjust based on your setup)
+
+# Servo angle mapping for baseline distance (90 to 270 degrees)
+baseline_servo_min = 90   # 90 degrees
+baseline_servo_max = 270  # 270 degrees
+
+# Face rotation (left-right) detection range
+face_rotation_left_max = -80   # nose far left from center
+face_rotation_right_max = 80   # nose far right from center
+
+# Servo angle mapping for face rotation (left-right movement)
+rotation_servo_min = 0     # Full left rotation
+rotation_servo_max = 180   # Full right rotation
+
 # Webcam
 cap = cv2.VideoCapture(0)
 
@@ -121,13 +137,28 @@ while cap.isOpened():
             left_iris_baseline_dist = abs(left_iris[1] - baseline_y)
             right_iris_baseline_dist = abs(right_iris[1] - baseline_y)
             
+            # Map baseline distance to servo angles (90 to 270 degrees)
+            left_baseline_servo_angle = map_range(left_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
+                                                  baseline_servo_min, baseline_servo_max)
+            right_baseline_servo_angle = map_range(right_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
+                                                   baseline_servo_min, baseline_servo_max)
+            
             # Horizontal distance from iris to fixed face center line
             face_center_x = FIXED_CENTER_X
             left_iris_center_dist = abs(left_iris[0] - face_center_x)
             right_iris_center_dist = abs(right_iris[0] - face_center_x)
             
-            print(f"Left: nose={left_eye_nose:.1f}, baseline={left_iris_baseline_dist:.1f}, center={left_iris_center_dist:.1f}")
-            print(f"Right: nose={right_eye_nose:.1f}, baseline={right_iris_baseline_dist:.1f}, center={right_iris_center_dist:.1f}")
+            # --- Face Rotation (Left-Right) Detection ---
+            # Calculate nose position relative to center (negative = left, positive = right)
+            nose_horizontal_offset = nose[0] - face_center_x
+            
+            # Map face rotation to servo angle (0 = full left, 90 = center, 180 = full right)
+            face_rotation_servo = map_range(nose_horizontal_offset, face_rotation_left_max, face_rotation_right_max,
+                                           rotation_servo_min, rotation_servo_max)
+            
+            print(f"Left: baseline={left_iris_baseline_dist:.1f}px → {left_baseline_servo_angle:.1f}°")
+            print(f"Right: baseline={right_iris_baseline_dist:.1f}px → {right_baseline_servo_angle:.1f}°")
+            print(f"Face Rotation: offset={nose_horizontal_offset:.1f}px → {face_rotation_servo:.1f}°")
 
             smoothed_left_eye_nose =  left_eye_nose
             smoothed_right_eye_nose =  right_eye_nose
@@ -170,6 +201,12 @@ while cap.isOpened():
             # Draw iris to fixed baseline lines
             cv2.line(frame, left_iris, (left_iris[0], FIXED_BASELINE_Y), (0, 255, 255), 1)
             cv2.line(frame, right_iris, (right_iris[0], FIXED_BASELINE_Y), (255, 0, 255), 1)
+            
+            # Draw face rotation indicator (horizontal line from nose showing rotation)
+            rotation_indicator_length = int(abs(nose_horizontal_offset))
+            rotation_end_x = nose[0] + rotation_indicator_length if nose_horizontal_offset > 0 else nose[0] - rotation_indicator_length
+            cv2.line(frame, nose, (rotation_end_x, nose[1]), (255, 128, 0), 2)  # Orange line
+            cv2.circle(frame, (face_center_x, nose[1]), 3, (255, 128, 0), -1)  # Center reference point
 
             # --- Display Text ---
             cv2.putText(frame, f"Lid Left: {left_lid_mapped:.1f}", (30, 40),
@@ -187,10 +224,20 @@ while cap.isOpened():
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             cv2.putText(frame, f"Right Baseline: {right_iris_baseline_dist:.1f}px", (30, 200),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            # Baseline servo angles (90-270 degrees)
+            cv2.putText(frame, f"Left Angle: {left_baseline_servo_angle:.1f}", (30, 230),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            cv2.putText(frame, f"Right Angle: {right_baseline_servo_angle:.1f}", (30, 260),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            
+            # Face rotation servo angle
+            cv2.putText(frame, f"Face Rotation: {face_rotation_servo:.1f}", (30, 290),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 128, 0), 2)
 
-            cv2.putText(frame, f"Servo L-Eye: {left_eye_servo:.1f}", (30, 240),
+            cv2.putText(frame, f"Servo L-Eye: {left_eye_servo:.1f}", (30, 320),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 200), 2)
-            cv2.putText(frame, f"Servo R-Eye: {right_eye_servo:.1f}", (30, 270),
+            cv2.putText(frame, f"Servo R-Eye: {right_eye_servo:.1f}", (30, 350),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 255), 2)
 
     cv2.imshow("Eyelid & Eyeball Servo Mapping", frame)
