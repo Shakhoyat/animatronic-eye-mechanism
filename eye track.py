@@ -4,6 +4,7 @@ import math
 import serial
 import serial.tools.list_ports
 import time
+import json
 
 # Initialize FaceMesh
 mp_face_mesh = mp.solutions.face_mesh
@@ -212,17 +213,30 @@ while cap.isOpened():
             face_rotation_servo = map_range(smoothed_rotation_ratio, rotation_ratio_left_max, rotation_ratio_right_max,
                                            rotation_servo_min, rotation_servo_max)
             
+            # --- Prepare JSON Data ---
+            data_json = {
+                "left_lid": int(left_lid_mapped),
+                "right_lid": int(right_lid_mapped),
+                "left_baseline": int(left_baseline_servo_angle),
+                "right_baseline": int(right_baseline_servo_angle),
+                "rotation": int(face_rotation_servo),
+                "left_eye_nose": round(smoothed_left_eye_nose, 1),
+                "right_eye_nose": round(smoothed_right_eye_nose, 1),
+                "left_baseline_dist": round(left_iris_baseline_dist, 1),
+                "right_baseline_dist": round(right_iris_baseline_dist, 1),
+                "rotation_ratio": round(smoothed_rotation_ratio, 3)
+            }
+            
             print(f"Left: baseline={left_iris_baseline_dist:.1f}px → {left_baseline_servo_angle:.1f}°")
             print(f"Right: baseline={right_iris_baseline_dist:.1f}px → {right_baseline_servo_angle:.1f}°")
             print(f"Face Rotation: ratio={smoothed_rotation_ratio:.3f} → {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
             
-            # --- Send Data to ESP32 via Serial ---
+            # --- Send Data to ESP32 via Serial as JSON ---
             if ser and ser.is_open:
-                # Format: L_LID,R_LID,L_BASE,R_BASE,ROTATION\n
-                data_string = f"{int(left_lid_mapped)},{int(right_lid_mapped)},{int(left_baseline_servo_angle)},{int(right_baseline_servo_angle)},{int(face_rotation_servo)}\n"
+                json_string = json.dumps(data_json) + "\n"
                 try:
-                    ser.write(data_string.encode())
-                    print(f"Sent to ESP32: {data_string.strip()}")
+                    ser.write(json_string.encode())
+                    print(f"Sent JSON to ESP32: {json_string.strip()}")
                 except Exception as e:
                     print(f"Error sending data: {e}")
 
