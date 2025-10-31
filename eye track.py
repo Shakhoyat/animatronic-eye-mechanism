@@ -213,6 +213,10 @@ while cap.isOpened():
             face_rotation_servo = map_range(smoothed_rotation_ratio, rotation_ratio_left_max, rotation_ratio_right_max,
                                            rotation_servo_min, rotation_servo_max)
             
+            # Apply smoothing to eye-nose distances (moved before JSON creation)
+            smoothed_left_eye_nose = smooth(smoothed_left_eye_nose, left_eye_nose)
+            smoothed_right_eye_nose = smooth(smoothed_right_eye_nose, right_eye_nose)
+            
             # --- Prepare JSON Data ---
             data_json = {
                 "left_lid": int(left_lid_mapped),
@@ -239,9 +243,6 @@ while cap.isOpened():
                     print(f"Sent JSON to ESP32: {json_string.strip()}")
                 except Exception as e:
                     print(f"Error sending data: {e}")
-
-            smoothed_left_eye_nose =  left_eye_nose
-            smoothed_right_eye_nose =  right_eye_nose
 
             # Map to intermediate range first (eye-nose distance to intermediate values)
             left_eye_intermediate = map_range(smoothed_left_eye_nose, eye_nose_min, eye_nose_max,
