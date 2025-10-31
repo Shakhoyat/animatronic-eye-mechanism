@@ -6,29 +6,54 @@ import math
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(refine_landmarks=True, max_num_faces=1)
 
-# Function to calculate Euclidean distance
+# --- Utility Functions ---
 def calc_distance(p1, p2):
     return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
 
-# Smooth distance
 def smooth(prev, new, alpha=0.3):
     if prev is None:
         return new
-    return alpha*new + (1-alpha)*prev
+    return alpha * new + (1 - alpha) * prev
 
-# Start webcam
+def map_range(value, in_min, in_max, out_min, out_max):
+    value = max(min(value, in_max), in_min)  # clamp
+    return out_min + (value - in_min) * (out_max - out_min) / (in_max - in_min)
+
+# --- Configurable Ranges ---
+# Eyelid servo range
+servo_left_lid_min = 30
+servo_left_lid_max = 70
+lid_gap_min = 3
+lid_gap_max = 11
+
+# Eyeball intermediate mapping ranges (eye-nose distance to intermediate values)
+left_eye_intermediate_min = 106
+left_eye_intermediate_max = 88
+right_eye_intermediate_min = 96
+right_eye_intermediate_max = 111
+
+# Final servo output range (both eyes)
+left_eye_servo_min = 40
+left_eye_servo_max = 70
+right_eye_servo_min = 40
+right_eye_servo_max = 70
+
+# Expected eyeball-nose distance range (calibration needed)
+eye_nose_min = 40     # near (eye moves inward)
+eye_nose_max = 70     # far (eye moves outward)
+
+# Webcam
 cap = cv2.VideoCapture(0)
 
-# Previous smoothed distances
-smoothed_left = None
-smoothed_right = None
+# Smoothing vars
+smoothed_left_lid = smoothed_right_lid = None
+smoothed_left_eye_nose = smoothed_right_eye_nose = None
 
 while cap.isOpened():
     success, frame = cap.read()
     if not success:
         continue
 
-    # Convert BGR to RGB
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = face_mesh.process(rgb_frame)
 
@@ -36,13 +61,16 @@ while cap.isOpened():
         for face_landmarks in results.multi_face_landmarks:
             h, w, _ = frame.shape
 
-            # Eyelid landmark indexes
+            # Landmarks
             LEFT_UPPER = 159
             LEFT_LOWER = 145
             RIGHT_UPPER = 386
             RIGHT_LOWER = 374
+            NOSE_CENTER = 1
+            LEFT_IRIS = 473
+            RIGHT_IRIS = 468
 
-            # Get coordinates
+            # Coordinates
             left_upper = (int(face_landmarks.landmark[LEFT_UPPER].x * w),
                           int(face_landmarks.landmark[LEFT_UPPER].y * h))
             left_lower = (int(face_landmarks.landmark[LEFT_LOWER].x * w),
@@ -51,23 +79,68 @@ while cap.isOpened():
                            int(face_landmarks.landmark[RIGHT_UPPER].y * h))
             right_lower = (int(face_landmarks.landmark[RIGHT_LOWER].x * w),
                            int(face_landmarks.landmark[RIGHT_LOWER].y * h))
+            nose = (int(face_landmarks.landmark[NOSE_CENTER].x * w),
+                    int(face_landmarks.landmark[NOSE_CENTER].y * h))
+            left_iris = (int(face_landmarks.landmark[LEFT_IRIS].x * w),
+                         int(face_landmarks.landmark[LEFT_IRIS].y * h))
+            right_iris = (int(face_landmarks.landmark[RIGHT_IRIS].x * w),
+                          int(face_landmarks.landmark[RIGHT_IRIS].y * h))
 
-            # Calculate distances (eyelid gap)
+            # --- Eyelid Gaps ---
             left_gap = calc_distance(left_upper, left_lower)
             right_gap = calc_distance(right_upper, right_lower)
 
-            # Smooth distances
-            smoothed_left = smooth(smoothed_left, left_gap)
-            smoothed_right = smooth(smoothed_right, right_gap)
+            smoothed_left_lid = smooth(smoothed_left_lid, left_gap)
+            smoothed_right_lid = smooth(smoothed_right_lid, right_gap)
 
-            # Display on frame
-            cv2.putText(frame, f"Left Eye Gap: {smoothed_left:.2f}", (30, 50),
+            left_lid_mapped = map_range(smoothed_left_lid, lid_gap_min, lid_gap_max,
+                                        servo_left_lid_min, servo_left_lid_max)
+            right_lid_mapped = map_range(smoothed_right_lid, lid_gap_min, lid_gap_max,
+                                         servo_left_lid_min, servo_left_lid_max)
+
+            # --- Eye–Nose Distance ---
+            left_eye_nose = calc_distance(nose, left_iris)
+            right_eye_nose = calc_distance(nose, right_iris)
+
+            smoothed_left_eye_nose = smooth(smoothed_left_eye_nose, left_eye_nose)
+            smoothed_right_eye_nose = smooth(smoothed_right_eye_nose, right_eye_nose)
+
+            # Map to intermediate range first (eye-nose distance to intermediate values)
+            left_eye_intermediate = map_range(smoothed_left_eye_nose, eye_nose_min, eye_nose_max,
+                                             left_eye_intermediate_min, left_eye_intermediate_max)
+            right_eye_intermediate = map_range(smoothed_right_eye_nose, eye_nose_min, eye_nose_max,
+                                              right_eye_intermediate_min, right_eye_intermediate_max)
+            
+            # Then map intermediate values to final servo range (40-70)
+            left_eye_servo = map_range(left_eye_intermediate, left_eye_intermediate_min, left_eye_intermediate_max,
+                                       left_eye_servo_min, left_eye_servo_max)
+            right_eye_servo = map_range(right_eye_intermediate, right_eye_intermediate_min, right_eye_intermediate_max,
+                                        right_eye_servo_min, right_eye_servo_max)
+
+            # --- Draw Points ---
+            cv2.circle(frame, nose, 3, (0, 0, 255), -1)
+            cv2.circle(frame, left_iris, 3, (0, 255, 255), -1)
+            cv2.circle(frame, right_iris, 3, (255, 0, 255), -1)
+            cv2.line(frame, nose, left_iris, (0, 255, 255), 1)
+            cv2.line(frame, nose, right_iris, (255, 0, 255), 1)
+
+            # --- Display Text ---
+            cv2.putText(frame, f"Lid Left: {left_lid_mapped:.1f}", (30, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(frame, f"Right Eye Gap: {smoothed_right:.2f}", (30, 80),
+            cv2.putText(frame, f"Lid Right: {right_lid_mapped:.1f}", (30, 70),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-    # Show frame
-    cv2.imshow("Eyelid Gap", frame)
+            cv2.putText(frame, f"Left Eye-Nose: {smoothed_left_eye_nose:.1f}px", (30, 110),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            cv2.putText(frame, f"Right Eye-Nose: {smoothed_right_eye_nose:.1f}px", (30, 140),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+
+            cv2.putText(frame, f"Servo L-Eye: {left_eye_servo:.1f}", (30, 180),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 200), 2)
+            cv2.putText(frame, f"Servo R-Eye: {right_eye_servo:.1f}", (30, 210),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 255), 2)
+
+    cv2.imshow("Eyelid & Eyeball Servo Mapping", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
