@@ -49,8 +49,6 @@ const unsigned long TIMEOUT_MS = 1000;  // 1 second timeout
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n\nESP32 Eye Tracking Receiver Starting...");
-  Serial.println("=== USB Serial Mode ===");
   
   // Setup status LED
   pinMode(STATUS_LED, OUTPUT);
@@ -83,8 +81,7 @@ void setup() {
   
   servoHeadRotation.setPeriodHertz(50);
   servoHeadRotation.attach(PIN_HEAD_ROTATION, SERVO_MIN_PULSE, SERVO_MAX_PULSE);
-  
-  Serial.println("All 7 servos initialized");
+
   
   // Set all servos to neutral position
   servoLeftLid.write(50);
@@ -94,9 +91,7 @@ void setup() {
   servoLeftEyeHorizontal.write(90);
   servoRightEyeHorizontal.write(90);
   servoHeadRotation.write(90);
-  
-  Serial.println("Servos set to neutral position");
-  Serial.println("Ready to receive data via USB Serial...");
+
   
   // LED on to indicate ready
   digitalWrite(STATUS_LED, HIGH);
