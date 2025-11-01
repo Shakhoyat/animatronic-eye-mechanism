@@ -144,6 +144,7 @@ void loop() {
     while (Serial.available()) {
       char c = Serial.read();
       
+      
       if (c == '\n') {
         // Process complete line
         if (serialBuffer.length() > 0) {
