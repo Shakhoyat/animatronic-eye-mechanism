@@ -204,19 +204,19 @@ void loop() {
   }
   
   // Check for timeout (no data received)
-  if (millis() - lastPacketTime > TIMEOUT_MS && lastPacketTime > 0) {
-    // Return all 7 servos to neutral position on timeout
-    servoLeftLid.write(50);                   // Servo 1: Neutral
-    servoRightLid.write(50);                  // Servo 2: Neutral
-    servoLeftEyeVertical.write(180);          // Servo 3: Neutral
-    servoRightEyeVertical.write(180);         // Servo 4: Neutral
-    servoLeftEyeHorizontal.write(90);         // Servo 5: Neutral
-    servoRightEyeHorizontal.write(90);        // Servo 6: Neutral
-    servoHeadRotation.write(90);              // Servo 7: Neutral
+  // if (millis() - lastPacketTime > TIMEOUT_MS && lastPacketTime > 0) {
+  //   // Return all 7 servos to neutral position on timeout
+  //   servoLeftLid.write(50);                   // Servo 1: Neutral
+  //   servoRightLid.write(50);                  // Servo 2: Neutral
+  //   servoLeftEyeVertical.write(180);          // Servo 3: Neutral
+  //   servoRightEyeVertical.write(180);         // Servo 4: Neutral
+  //   servoLeftEyeHorizontal.write(90);         // Servo 5: Neutral
+  //   servoRightEyeHorizontal.write(90);        // Servo 6: Neutral
+  //   servoHeadRotation.write(90);              // Servo 7: Neutral
     
-    // Blink LED to indicate timeout
-    digitalWrite(STATUS_LED, millis() % 1000 < 500);
-  }
-  
+  //   // Blink LED to indicate timeout
+  //   digitalWrite(STATUS_LED, millis() % 1000 < 500);
+  // }
+  digitalWrite(STATUS_LED, LOW); 
   delay(1);  // Small delay to prevent watchdog reset
 }
