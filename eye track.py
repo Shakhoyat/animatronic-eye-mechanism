@@ -24,8 +24,8 @@ def map_range(value, in_min, in_max, out_min, out_max):
 
 # --- Configurable Ranges ---
 # Eyelid servo range
-servo_left_lid_min = 30
-servo_left_lid_max = 70
+servo_left_lid_min = 50
+servo_left_lid_max = 135
 lid_gap_min = 3
 lid_gap_max = 11
 
@@ -162,8 +162,9 @@ while cap.isOpened():
 
             left_lid_mapped = map_range(smoothed_left_lid, lid_gap_min, lid_gap_max,
                                         servo_left_lid_min, servo_left_lid_max)
+            # Right eyelid uses REVERSE logic (max to min instead of min to max)
             right_lid_mapped = map_range(smoothed_right_lid, lid_gap_min, lid_gap_max,
-                                         servo_left_lid_min, servo_left_lid_max)
+                                         servo_left_lid_max, servo_left_lid_min)
 
             # --- Eye–Nose Distance ---
             left_eye_nose = calc_distance(nose, left_iris)
