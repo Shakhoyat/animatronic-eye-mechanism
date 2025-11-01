@@ -107,8 +107,8 @@ void parseSerialData(String data) {
   }
   
   // Extract values from JSON
-  leftLid = doc["left_lid"] | 50;  // Default to 50 if not found
-  rightLid = doc["right_lid"] | 50;
+  leftLid = doc["left_lid"] | 135;  // Default to 135 if not found
+  rightLid = doc["right_lid"] | 135;
   leftBaseline = doc["left_baseline"] | 180;
   rightBaseline = doc["right_baseline"] | 180;
   rotation = doc["rotation"] | 90;
