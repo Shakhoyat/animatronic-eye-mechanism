@@ -217,29 +217,22 @@ while cap.isOpened():
             smoothed_left_eye_nose = smooth(smoothed_left_eye_nose, left_eye_nose)
             smoothed_right_eye_nose = smooth(smoothed_right_eye_nose, right_eye_nose)
             
-            # --- Prepare JSON Data ---
+            # --- Prepare JSON Data (ONLY essential servo values) ---
             data_json = {
                 "left_lid": int(left_lid_mapped),
                 "right_lid": int(right_lid_mapped),
                 "left_baseline": int(left_baseline_servo_angle),
                 "right_baseline": int(right_baseline_servo_angle),
                 "rotation": int(face_rotation_servo),
-                "left_eye_nose": round(smoothed_left_eye_nose, 1),
-                "right_eye_nose": round(smoothed_right_eye_nose, 1),
-                "left_baseline_dist": round(left_iris_baseline_dist, 1),
-                "right_baseline_dist": round(right_iris_baseline_dist, 1),
-                "rotation_ratio": round(smoothed_rotation_ratio, 3)
+                "left_eye_nose": int(smoothed_left_eye_nose),
+                "right_eye_nose": int(smoothed_right_eye_nose)
             }
             
-            print(f"Left: baseline={left_iris_baseline_dist:.1f}px -> {left_baseline_servo_angle:.1f}°")
-            print(f"Right: baseline={right_iris_baseline_dist:.1f}px -> {right_baseline_servo_angle:.1f}°")
-            print(f"Face Rotation: ratio={smoothed_rotation_ratio:.3f} -> {face_rotation_servo:.1f}° (L:{left_side_dist:.1f} R:{right_side_dist:.1f})")
             # --- Send Data to ESP32 via Serial as JSON ---
             if ser and ser.is_open:
                 json_string = json.dumps(data_json) + "\n"
                 try:
                     ser.write(json_string.encode())
-                    print(f"Sent JSON to ESP32: {json_string.strip()}")
                 except Exception as e:
                     print(f"Error sending data: {e}")
 

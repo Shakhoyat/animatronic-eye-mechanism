@@ -104,10 +104,6 @@ void setup() {
 
 // Parse serial data format: JSON
 void parseSerialData(String data) {
-  // Print raw received JSON
-  Serial.println("=== Received JSON ===");
-  Serial.println(data);
-  
   // Create JSON document
   StaticJsonDocument<256> doc;
   
@@ -115,49 +111,23 @@ void parseSerialData(String data) {
   DeserializationError error = deserializeJson(doc, data);
   
   if (error) {
-    Serial.print("JSON parse error: ");
-    Serial.println(error.c_str());
-    return;
+    return;  // Silently ignore parse errors
   }
   
   // Extract values from JSON with proper mapping
-  // JSON keys from Python: left_lid, right_lid, left_baseline, right_baseline, rotation
-  leftLid = doc["left_lid"] | 50;                    // Servo 1: Left eyelid
-  rightLid = doc["right_lid"] | 50;                  // Servo 2: Right eyelid
-  leftEyeVertical = doc["left_baseline"] | 180;      // Servo 3: Left eye vertical
-  rightEyeVertical = doc["right_baseline"] | 180;    // Servo 4: Right eye vertical
-  headRotation = doc["rotation"] | 90;               // Servo 7: Head rotation
+  leftLid = doc["left_lid"] | 50;
+  rightLid = doc["right_lid"] | 50;
+  leftEyeVertical = doc["left_baseline"] | 180;
+  rightEyeVertical = doc["right_baseline"] | 180;
+  headRotation = doc["rotation"] | 90;
   
-  // Servos 5 & 6: Left/Right eye horizontal (can be derived from left_eye_nose if needed)
-  // For now, using eye_nose values or keeping at neutral if not provided
+  // Horizontal eye servos
   if (doc.containsKey("left_eye_nose")) {
     leftEyeHorizontal = doc["left_eye_nose"].as<float>();
   }
   if (doc.containsKey("right_eye_nose")) {
     rightEyeHorizontal = doc["right_eye_nose"].as<float>();
   }
-  
-  // Print all parsed JSON values
-  Serial.println("=== Parsed Values ===");
-  Serial.printf("Servo 1 - Left Lid: %.1f\n", leftLid);
-  Serial.printf("Servo 2 - Right Lid: %.1f\n", rightLid);
-  Serial.printf("Servo 3 - Left Eye Vertical: %.1f\n", leftEyeVertical);
-  Serial.printf("Servo 4 - Right Eye Vertical: %.1f\n", rightEyeVertical);
-  Serial.printf("Servo 5 - Left Eye Horizontal: %.1f\n", leftEyeHorizontal);
-  Serial.printf("Servo 6 - Right Eye Horizontal: %.1f\n", rightEyeHorizontal);
-  Serial.printf("Servo 7 - Head Rotation: %.1f\n", headRotation);
-  
-  // Print additional debug data if available
-  if (doc.containsKey("left_baseline_dist")) {
-    Serial.printf("  [Debug] Left Baseline Dist: %.1f\n", doc["left_baseline_dist"].as<float>());
-  }
-  if (doc.containsKey("right_baseline_dist")) {
-    Serial.printf("  [Debug] Right Baseline Dist: %.1f\n", doc["right_baseline_dist"].as<float>());
-  }
-  if (doc.containsKey("rotation_ratio")) {
-    Serial.printf("  [Debug] Rotation Ratio: %.3f\n", doc["rotation_ratio"].as<float>());
-  }
-  Serial.println("====================\n");
   
   // Write to all 7 servos
   servoLeftLid.write(leftLid);                    // Servo 1: Left eyelid
@@ -190,8 +160,8 @@ void loop() {
         // Add character to buffer (ignore carriage return)
         serialBuffer += c;
         
-        // Prevent buffer overflow
-        if (serialBuffer.length() > 100) {
+        // Prevent buffer overflow - increased to 300 for larger JSON
+        if (serialBuffer.length() > 300) {
           serialBuffer = "";
         }
       }
