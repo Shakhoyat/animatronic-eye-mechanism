@@ -9,6 +9,10 @@
 // Serial buffer
 String serialBuffer = "";
 
+// UART pins for receiving data from Python (Serial1)
+#define RXD1 16  // GPIO16 - RX pin for receiving from laptop
+#define TXD1 17  // GPIO17 - TX pin (optional, not used here)
+
 // Servo objects (7 servos total)
 Servo servoLeftLid;           // Servo 1
 Servo servoRightLid;          // Servo 2
@@ -48,9 +52,16 @@ unsigned long lastPacketTime = 0;
 const unsigned long TIMEOUT_MS = 1000;  // 1 second timeout
 
 void setup() {
+  // Serial (USB) - for Arduino IDE Serial Monitor debugging
   Serial.begin(115200);
   Serial.println("\n\nESP32 Eye Tracking Receiver Starting...");
-  Serial.println("=== USB Serial Mode ===");
+  Serial.println("=== Dual Serial Mode ===");
+  Serial.println("Serial (USB): Arduino IDE Monitor");
+  Serial.println("Serial1 (UART1): Python PySerial");
+  
+  // Serial1 (UART1) - for receiving data from Python
+  Serial1.begin(115200, SERIAL_8N1, RXD1, TXD1);
+  Serial.println("Serial1 initialized on RX=GPIO16, TX=GPIO17");
   
   // Setup status LED
   pinMode(STATUS_LED, OUTPUT);
@@ -172,10 +183,10 @@ void parseSerialData(String data) {
 }
 
 void loop() {
-  // USB Serial Mode - Read from Serial
-  if (Serial.available()) {
-    while (Serial.available()) {
-      char c = Serial.read();
+  // Read from Serial1 (Python PySerial) - Data input
+  if (Serial1.available()) {
+    while (Serial1.available()) {
+      char c = Serial1.read();
       
       if (c == '\n') {
         // Process complete line
@@ -189,8 +200,9 @@ void loop() {
         serialBuffer += c;
         
         // Prevent buffer overflow
-        if (serialBuffer.length() > 100) {
+        if (serialBuffer.length() > 200) {
           serialBuffer = "";
+          Serial.println("Buffer overflow - cleared");
         }
       }
     }
