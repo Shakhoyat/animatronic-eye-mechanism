@@ -185,7 +185,7 @@ while cap.isOpened():
             left_baseline_servo_angle = map_range(left_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
                                                   baseline_servo_min, baseline_servo_max)
             right_baseline_servo_angle = map_range(right_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
-                                                   baseline_servo_max,baseline_servo_min )
+                                                   baseline_servo_min, baseline_servo_max)
             
             # Horizontal distance from iris to fixed face center line
             face_center_x = FIXED_CENTER_X
@@ -214,18 +214,30 @@ while cap.isOpened():
             face_rotation_servo = map_range(smoothed_rotation_ratio, rotation_ratio_left_max, rotation_ratio_right_max,
                                            rotation_servo_min, rotation_servo_max)
             
-            # Apply smoothing to eye-nose distances
+            # Apply smoothing to eye-nose distances (kept for backward compatibility)
             smoothed_left_eye_nose = smooth(smoothed_left_eye_nose, left_eye_nose)
             smoothed_right_eye_nose = smooth(smoothed_right_eye_nose, right_eye_nose)
             
-            # Map eye-nose distance directly to servo angles (35-155 range)
-            # Left eye: eye-nose distance → servo angle
-            left_eye_horizontal_angle = map_range(left_eye_nose, eye_nose_min, eye_nose_max,
-                                                 left_eye_horizontal_min, left_eye_horizontal_max)
+            # --- NEW LOGIC: Use iris-baseline distance difference for horizontal movement ---
+            # Calculate the difference between left and right iris baseline distances
+            baseline_diff = left_iris_baseline_dist - right_iris_baseline_dist
             
-            # Right eye: eye-nose distance → servo angle  
-            right_eye_horizontal_angle = map_range(right_eye_nose, eye_nose_min, eye_nose_max,
-                                                   right_eye_horizontal_min, right_eye_horizontal_max)
+            # If distances are equal (diff ≈ 0): stay straight (center at 95°)
+            # If left distance is smaller (diff < 0): rotate left (lower angles 35°)
+            # If right distance is smaller (diff > 0): rotate right (higher angles 155°)
+            
+            # Map the difference to servo angles
+            # Typical diff range: -50 to +50 pixels (adjust based on your camera/face size)
+            diff_range_min = -50  # Left eye closer to baseline (look left)
+            diff_range_max = 50   # Right eye closer to baseline (look right)
+            
+            # Both eyes move together based on the baseline distance difference
+            horizontal_servo_angle = map_range(baseline_diff, diff_range_min, diff_range_max,
+                                              left_eye_horizontal_min, left_eye_horizontal_max)
+            
+            # Apply to both eyes (they move in sync)
+            left_eye_horizontal_angle = horizontal_servo_angle
+            right_eye_horizontal_angle = horizontal_servo_angle
             
             # --- Map to servo values for the 7-servo system ---
             # S1 & S2: Eye horizontal movement (35-155 degree range)
