@@ -35,22 +35,16 @@ servo_left_lid_max = 135
 lid_gap_min = 3
 lid_gap_max = 11
 
-# Eyeball horizontal mapping ranges (eye-nose distance to servo angles)
-# These values are sent directly to S1 and S2 (should be in 60-120 range)
-left_eye_intermediate_min = 120   # Left eye: when nose far (reverse logic)
-left_eye_intermediate_max = 60    # Left eye: when nose near
-right_eye_intermediate_min = 60   # Right eye: when nose near
-right_eye_intermediate_max = 120  # Right eye: when nose far
+# Expected eyeball-nose distance range (raw pixel measurements from MediaPipe)
+eye_nose_min = 90     # When eye looks toward nose (near)
+eye_nose_max = 155    # When eye looks away from nose (far)
 
-# Final servo output range (both eyes)
-left_eye_servo_min = 155
-left_eye_servo_max = 35
-right_eye_servo_min = 35
-right_eye_servo_max = 155
-
-# Expected eyeball-nose distance range (calibration needed)
-eye_nose_min = 90     # near (eye moves inward)
-eye_nose_max = 155     # far (eye moves outward)
+# Eyeball horizontal servo output range (sent directly as S1 and S2)
+# Both eyes use the SAME physical range: 35-155 degrees
+left_eye_horizontal_min = 35    # Left eye looks left (minimum angle)
+left_eye_horizontal_max = 155   # Left eye looks right (maximum angle)
+right_eye_horizontal_min = 35   # Right eye looks left (minimum angle)
+right_eye_horizontal_max = 155  # Right eye looks right (maximum angle)
 
 # Baseline distance range (iris to bottom baseline)
 baseline_dist_min = 100    # minimum distance from iris to baseline (adjust based on your setup)
@@ -224,16 +218,19 @@ while cap.isOpened():
             smoothed_left_eye_nose = smooth(smoothed_left_eye_nose, left_eye_nose)
             smoothed_right_eye_nose = smooth(smoothed_right_eye_nose, right_eye_nose)
             
-            # Map eye-nose distance to intermediate range first
-            left_eye_intermediate = map_range(smoothed_left_eye_nose, eye_nose_min, eye_nose_max,
-                                             left_eye_intermediate_min, left_eye_intermediate_max)
-            right_eye_intermediate = map_range(smoothed_right_eye_nose, eye_nose_min, eye_nose_max,
-                                              right_eye_intermediate_min, right_eye_intermediate_max)
+            # Map eye-nose distance directly to servo angles (35-155 range)
+            # Left eye: eye-nose distance → servo angle
+            left_eye_horizontal_angle = map_range(smoothed_left_eye_nose, eye_nose_min, eye_nose_max,
+                                                 left_eye_horizontal_min, left_eye_horizontal_max)
+            
+            # Right eye: eye-nose distance → servo angle  
+            right_eye_horizontal_angle = map_range(smoothed_right_eye_nose, eye_nose_min, eye_nose_max,
+                                                   right_eye_horizontal_min, right_eye_horizontal_max)
             
             # --- Map to servo values for the 7-servo system ---
-            # S1 & S2: Eye horizontal movement (using mapped intermediate values)
-            s1_eye_left_lr = int(left_eye_intermediate)
-            s2_eye_right_lr = int(right_eye_intermediate)
+            # S1 & S2: Eye horizontal movement (35-155 degree range)
+            s1_eye_left_lr = int(left_eye_horizontal_angle)
+            s2_eye_right_lr = int(right_eye_horizontal_angle)
             
             # S3 & S4: Eyelids
             s3_eyelid_left = int(left_lid_mapped)
@@ -255,11 +252,9 @@ while cap.isOpened():
                 except Exception as e:
                     print(f"Error sending data: {e}")
 
-            # For display: map intermediate values to final servo range for visualization
-            left_eye_servo = map_range(left_eye_intermediate, left_eye_intermediate_min, left_eye_intermediate_max,
-                                       left_eye_servo_min, left_eye_servo_max)
-            right_eye_servo = map_range(right_eye_intermediate, right_eye_intermediate_min, right_eye_intermediate_max,
-                                        right_eye_servo_min, right_eye_servo_max)
+            # For display: use the actual servo angles
+            left_eye_servo = left_eye_horizontal_angle
+            right_eye_servo = right_eye_horizontal_angle
 
             # --- Draw Points ---
             cv2.circle(frame, nose, 3, (0, 0, 255), -1)
