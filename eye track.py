@@ -243,23 +243,24 @@ while cap.isOpened():
             # S1 & S2: Eye horizontal movement (35-155 degree range)
             s1_eye_left_lr = int(left_eye_horizontal_angle)
             s2_eye_right_lr = int(right_eye_horizontal_angle)
-            if(baseline_diff < -5):
-                s1_eye_left_lr = -50
-                s2_eye_right_lr = 50
-            elif(baseline_diff > 5):
-                s1_eye_left_lr = 50
-                s2_eye_right_lr = -50
-            else:
+            if(baseline_diff < -20):
                 s1_eye_left_lr = 0
                 s2_eye_right_lr = 0
+            elif(baseline_diff > 20):
+                s1_eye_left_lr = 180
+                s2_eye_right_lr = 180
+                 
+            else:
+                s1_eye_left_lr = 90
+                s2_eye_right_lr = 90
 
             # S3 & S4: Eyelids
             s3_eyelid_left = int(left_lid_mapped)
             s4_eyelid_right = int(right_lid_mapped)
             
             # S5 & S6: Eye vertical tilt (using baseline distance)
-            s5_tilt_left = int(left_baseline_servo_angle)
-            s6_tilt_right = int(right_baseline_servo_angle)
+            s5_tilt_left = int(s2_eye_right_lr)
+            s6_tilt_right = int(s1_eye_left_lr)
             
             # S7: Head rotation
             s7_head_rotate = int(face_rotation_servo)
