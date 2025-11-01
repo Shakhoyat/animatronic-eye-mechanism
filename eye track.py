@@ -236,7 +236,7 @@ while cap.isOpened():
                     chunk_size = 32  # Send 32 bytes at a time
                     for i in range(0, len(json_string), chunk_size):
                         chunk = json_string[i:i+chunk_size]
-                        ser.write(chunk.encode())
+                        ser.write("hello")
                         time.sleep(0.001)  # Small delay between chunks (1ms)
                 except Exception as e:
                     print(f"Error sending data: {e}")
