@@ -30,8 +30,8 @@ def map_range(value, in_min, in_max, out_min, out_max):
 
 # --- Configurable Ranges ---
 # Eyelid servo range
-servo_left_lid_min = 50 # eyelid final
-servo_left_lid_max = 135
+servo_left_lid_min = 70 # eyelid final
+servo_left_lid_max = 110
 lid_gap_min = 3
 lid_gap_max = 11
 
