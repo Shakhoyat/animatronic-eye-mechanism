@@ -41,10 +41,10 @@ eye_nose_max = 155    # When eye looks away from nose (far)
 
 # Eyeball horizontal servo output range (sent directly as S1 and S2)
 # Both eyes use the SAME physical range: 35-155 degrees
-left_eye_horizontal_min = 35    # Left eye looks left (minimum angle)
-left_eye_horizontal_max = 155   # Left eye looks right (maximum angle)
-right_eye_horizontal_min = 35   # Right eye looks left (minimum angle)
-right_eye_horizontal_max = 155  # Right eye looks right (maximum angle)
+left_eye_horizontal_min = 130    # Left eye looks left (minimum angle)
+left_eye_horizontal_max = 40   # Left eye looks right (maximum angle)
+right_eye_horizontal_min = 40   # Right eye looks left (minimum angle)
+right_eye_horizontal_max = 130  # Right eye looks right (maximum angle)
 
 # Baseline distance range (iris to bottom baseline)
 baseline_dist_min = 100    # minimum distance from iris to baseline (adjust based on your setup)
@@ -220,11 +220,11 @@ while cap.isOpened():
             
             # Map eye-nose distance directly to servo angles (35-155 range)
             # Left eye: eye-nose distance → servo angle
-            left_eye_horizontal_angle = map_range(smoothed_left_eye_nose, eye_nose_min, eye_nose_max,
+            left_eye_horizontal_angle = map_range(left_eye_nose, eye_nose_min, eye_nose_max,
                                                  left_eye_horizontal_min, left_eye_horizontal_max)
             
             # Right eye: eye-nose distance → servo angle  
-            right_eye_horizontal_angle = map_range(smoothed_right_eye_nose, eye_nose_min, eye_nose_max,
+            right_eye_horizontal_angle = map_range(right_eye_nose, eye_nose_min, eye_nose_max,
                                                    right_eye_horizontal_min, right_eye_horizontal_max)
             
             # --- Map to servo values for the 7-servo system ---
