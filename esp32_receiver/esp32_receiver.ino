@@ -137,9 +137,9 @@ void parseSerialData(String command) {
       value.trim();
       
       if (key == "S1") {
-        s1 = value.toInt();
+        s1 = 90
       } else if (key == "S2") {
-        s2 = value.toInt();
+        s2 = 90
       } else if (key == "S3") {
         s3 = value.toInt();
       } else if (key == "S4") {
