@@ -19,7 +19,13 @@ def smooth(prev, new, alpha=0.3):
     return alpha * new + (1 - alpha) * prev
 
 def map_range(value, in_min, in_max, out_min, out_max):
-    value = max(min(value, in_max), in_min)  # clamp
+    # Clamp input value to input range (handles both normal and reverse ranges)
+    if in_min <= in_max:
+        value = max(min(value, in_max), in_min)
+    else:
+        value = max(min(value, in_min), in_max)
+    
+    # Map to output range (works for both normal and reverse mappings)
     return out_min + (value - in_min) * (out_max - out_min) / (in_max - in_min)
 
 # --- Configurable Ranges ---
