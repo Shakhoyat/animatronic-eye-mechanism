@@ -41,10 +41,10 @@ eye_nose_max = 155    # When eye looks away from nose (far)
 
 # Eyeball horizontal servo output range (sent directly as S1 and S2)
 # Both eyes use the SAME physical range: 35-155 degrees
-left_eye_horizontal_min = 130    # Left eye looks left (minimum angle)
-left_eye_horizontal_max = 40   # Left eye looks right (maximum angle)
-right_eye_horizontal_min = 40   # Right eye looks left (minimum angle)
-right_eye_horizontal_max = 130  # Right eye looks right (maximum angle)
+left_eye_horizontal_min = 40    # Left eye looks left (minimum angle)
+left_eye_horizontal_max = 120   # Left eye looks right (maximum angle)
+right_eye_horizontal_min = 120   # Right eye looks left (minimum angle)
+right_eye_horizontal_max = 40  # Right eye looks right (maximum angle)
 
 # Baseline distance range (iris to bottom baseline)
 baseline_dist_min = 100    # minimum distance from iris to baseline (adjust based on your setup)
