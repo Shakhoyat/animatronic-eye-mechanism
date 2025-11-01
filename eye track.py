@@ -185,7 +185,7 @@ while cap.isOpened():
             left_baseline_servo_angle = map_range(left_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
                                                   baseline_servo_min, baseline_servo_max)
             right_baseline_servo_angle = map_range(right_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
-                                                   baseline_servo_min, baseline_servo_max)
+                                                   baseline_servo_max,baseline_servo_min )
             
             # Horizontal distance from iris to fixed face center line
             face_center_x = FIXED_CENTER_X
