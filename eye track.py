@@ -4,7 +4,6 @@ import math
 import serial
 import serial.tools.list_ports
 import time
-import json
 
 # Initialize FaceMesh
 mp_face_mesh = mp.solutions.face_mesh
@@ -217,22 +216,28 @@ while cap.isOpened():
             smoothed_left_eye_nose = smooth(smoothed_left_eye_nose, left_eye_nose)
             smoothed_right_eye_nose = smooth(smoothed_right_eye_nose, right_eye_nose)
             
-            # --- Prepare JSON Data (ONLY essential servo values) ---
-            data_json = {
-                "left_lid": int(left_lid_mapped),
-                "right_lid": int(right_lid_mapped),
-                "left_baseline": int(left_baseline_servo_angle),
-                "right_baseline": int(right_baseline_servo_angle),
-                "rotation": int(face_rotation_servo),
-                "left_eye_nose": int(smoothed_left_eye_nose),
-                "right_eye_nose": int(smoothed_right_eye_nose)
-            }
+            # --- Map to servo values for the 7-servo system ---
+            # S1 & S2: Eye horizontal movement (using eye-nose distance)
+            s1_eye_left_lr = int(smoothed_left_eye_nose)
+            s2_eye_right_lr = int(smoothed_right_eye_nose)
             
-            # --- Send Data to ESP32 via Serial as JSON ---
+            # S3 & S4: Eyelids
+            s3_eyelid_left = int(left_lid_mapped)
+            s4_eyelid_right = int(right_lid_mapped)
+            
+            # S5 & S6: Eye vertical tilt (using baseline distance)
+            s5_tilt_left = int(left_baseline_servo_angle)
+            s6_tilt_right = int(right_baseline_servo_angle)
+            
+            # S7: Head rotation
+            s7_head_rotate = int(face_rotation_servo)
+            
+            # --- Send Data to ESP32 via Serial as String ---
+            # Format: S1:90,S2:90,S3:120,S4:120,S5:90,S6:90,S7:90
             if ser and ser.is_open:
-                json_string = json.dumps(data_json) + "\n"
+                command_string = f"S1:{s1_eye_left_lr},S2:{s2_eye_right_lr},S3:{s3_eyelid_left},S4:{s4_eyelid_right},S5:{s5_tilt_left},S6:{s6_tilt_right},S7:{s7_head_rotate}\n"
                 try:
-                    ser.write(json_string.encode())
+                    ser.write(command_string.encode())
                 except Exception as e:
                     print(f"Error sending data: {e}")
 
