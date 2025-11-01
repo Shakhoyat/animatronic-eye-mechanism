@@ -9,10 +9,6 @@
 // Serial buffer
 String serialBuffer = "";
 
-// UART pins for receiving data from Python (Serial1)
-#define RXD1 16  // GPIO16 - RX pin for receiving from laptop
-#define TXD1 17  // GPIO17 - TX pin (optional, not used here)
-
 // Servo objects (7 servos total)
 Servo servoLeftLid;           // Servo 1
 Servo servoRightLid;          // Servo 2
@@ -36,7 +32,7 @@ Servo servoHeadRotation;      // Servo 7
 #define SERVO_MAX_PULSE 2500  // Maximum pulse width in microseconds
 
 // LED for status indication
-#define STATUS_LED 2
+#define STATUS_LED 23
 
 // Variables to store received servo angles
 float leftLid = 50.0;
@@ -52,16 +48,9 @@ unsigned long lastPacketTime = 0;
 const unsigned long TIMEOUT_MS = 1000;  // 1 second timeout
 
 void setup() {
-  // Serial (USB) - for Arduino IDE Serial Monitor debugging
   Serial.begin(115200);
   Serial.println("\n\nESP32 Eye Tracking Receiver Starting...");
-  Serial.println("=== Dual Serial Mode ===");
-  Serial.println("Serial (USB): Arduino IDE Monitor");
-  Serial.println("Serial1 (UART1): Python PySerial");
-  
-  // Serial1 (UART1) - for receiving data from Python
-  Serial1.begin(115200, SERIAL_8N1, RXD1, TXD1);
-  Serial.println("Serial1 initialized on RX=GPIO16, TX=GPIO17");
+  Serial.println("=== USB Serial Mode ===");
   
   // Setup status LED
   pinMode(STATUS_LED, OUTPUT);
@@ -183,10 +172,12 @@ void parseSerialData(String data) {
 }
 
 void loop() {
-  // Read from Serial1 (Python PySerial) - Data input
-  if (Serial1.available()) {
-    while (Serial1.available()) {
-      char c = Serial1.read();
+  // USB Serial Mode - Read from Serial
+  digitalWrite(STATUS_LED, HIGH);
+  if (Serial.available()) {
+    while (Serial.available()) {
+      char c = Serial.read();
+      digitalWrite(STATUS_LED, HIGH);
       
       if (c == '\n') {
         // Process complete line
@@ -200,9 +191,8 @@ void loop() {
         serialBuffer += c;
         
         // Prevent buffer overflow
-        if (serialBuffer.length() > 200) {
+        if (serialBuffer.length() > 100) {
           serialBuffer = "";
-          Serial.println("Buffer overflow - cleared");
         }
       }
     }
