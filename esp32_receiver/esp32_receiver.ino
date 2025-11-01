@@ -96,19 +96,21 @@ void setup() {
   //digitalWrite(STATUS_LED, HIGH);
 }
 
+int s1 = 90;   // Left eye horizontal
+  int s2 = 90;   // Right eye horizontal
+  int s3 = 50;   // Left eyelid
+  int s4 = 50;   // Right eyelid
+  int s5 = 180;  // Left eye vertical
+  int s6 = 180;  // Right eye vertical
+  int s7 = 90; 
+
 // Parse serial data format: String
 // Format: S1:90,S2:90,S3:50,S4:50,S5:180,S6:180,S7:90
 void parseSerialData(String command) {
   command.trim();
   
   // Default values
-  int s1 = 90;   // Left eye horizontal
-  int s2 = 90;   // Right eye horizontal
-  int s3 = 50;   // Left eyelid
-  int s4 = 50;   // Right eyelid
-  int s5 = 180;  // Left eye vertical
-  int s6 = 180;  // Right eye vertical
-  int s7 = 90;   // Head rotation
+    // Head rotation
   
   // Split by comma and parse
   int startPos = 0;
