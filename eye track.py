@@ -267,6 +267,11 @@ while cap.isOpened():
             
             # --- Send Data to ESP32 via Serial as String ---
             # Format: S1:90,S2:90,S3:120,S4:120,S5:90,S6:90,S7:90
+            #if(left_side_dist)
+            
+            
+            
+            
             if ser and ser.is_open:
                 command_string = f"S1:{90},S2:{90},S3:{s3_eyelid_left},S4:{s4_eyelid_right},S5:{s5_tilt_left},S6:{s6_tilt_right},S7:{s7_head_rotate}\n"
                 try:
