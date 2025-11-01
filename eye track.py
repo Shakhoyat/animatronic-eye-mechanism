@@ -228,16 +228,11 @@ while cap.isOpened():
                 "right_eye_nose": int(smoothed_right_eye_nose)
             }
             
-            # --- Send Data to ESP32 via Serial as JSON (chunk by chunk) ---
+            # --- Send Data to ESP32 via Serial as JSON ---
             if ser and ser.is_open:
                 json_string = json.dumps(data_json) + "\n"
                 try:
-                    # Send data in chunks to prevent buffer overflow
-                    chunk_size = 32  # Send 32 bytes at a time
-                    for i in range(0, len(json_string), chunk_size):
-                        chunk = json_string[i:i+chunk_size]
-                        ser.write("hello")
-                        time.sleep(0.001)  # Small delay between chunks (1ms)
+                    ser.write(json_string.encode())
                 except Exception as e:
                     print(f"Error sending data: {e}")
 

@@ -138,18 +138,17 @@ void parseSerialData(String data) {
 
 void loop() {
   // USB Serial Mode - Read from Serial
-  
   if (Serial.available()) {
+    digitalWrite(STATUS_LED, HIGH);  // Turn LED ON when receiving data
+    
     while (Serial.available()) {
       char c = Serial.read();
-      digitalWrite(STATUS_LED, HIGH);
       
       if (c == '\n') {
         // Process complete line
         if (serialBuffer.length() > 0) {
           parseSerialData(serialBuffer);
           serialBuffer = "";
-          digitalWrite(STATUS_LED, HIGH);  // Blink on data received
         }
       } else if (c != '\r') {
         // Add character to buffer (ignore carriage return)
@@ -161,6 +160,9 @@ void loop() {
         }
       }
     }
+  } else {
+    // Turn LED OFF when no data is being received
+    digitalWrite(STATUS_LED, LOW);
   }
   
   // Check for timeout (no data received)
@@ -176,8 +178,6 @@ void loop() {
     
     // Blink LED to indicate timeout
     digitalWrite(STATUS_LED, millis() % 1000 < 500);
-  } else if (lastPacketTime > 0) {
-    digitalWrite(STATUS_LED, HIGH);
   }
   
   delay(1);  // Small delay to prevent watchdog reset
