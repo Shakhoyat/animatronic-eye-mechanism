@@ -1,10 +1,9 @@
 /*
  * ESP32 Eye Tracking Receiver with ESP32Servo
- * Receives servo angle data via USB Serial in JSON format and controls servos
+ * Receives servo angle data via USB Serial in String format and controls servos
  */
 
 #include <ESP32Servo.h>
-#include <ArduinoJson.h>
 
 // Serial buffer
 String serialBuffer = "";
@@ -97,41 +96,79 @@ void setup() {
   //digitalWrite(STATUS_LED, HIGH);
 }
 
-// Parse serial data format: JSON
-void parseSerialData(String data) {
-  // Create JSON document
-  StaticJsonDocument<256> doc;
+// Parse serial data format: String
+// Format: S1:90,S2:90,S3:50,S4:50,S5:180,S6:180,S7:90
+void parseSerialData(String command) {
+  command.trim();
   
-  // Deserialize JSON
-  DeserializationError error = deserializeJson(doc, data);
+  // Default values
+  int s1 = 90;   // Left eye horizontal
+  int s2 = 90;   // Right eye horizontal
+  int s3 = 50;   // Left eyelid
+  int s4 = 50;   // Right eyelid
+  int s5 = 180;  // Left eye vertical
+  int s6 = 180;  // Right eye vertical
+  int s7 = 90;   // Head rotation
   
-  if (error) {
-    return;  // Silently ignore parse errors
+  // Split by comma and parse
+  int startPos = 0;
+  int commaPos = 0;
+  
+  while (commaPos != -1) {
+    commaPos = command.indexOf(',', startPos);
+    String part;
+    
+    if (commaPos == -1) {
+      part = command.substring(startPos);
+    } else {
+      part = command.substring(startPos, commaPos);
+      startPos = commaPos + 1;
+    }
+    
+    // Parse key:value pair
+    int colonPos = part.indexOf(':');
+    if (colonPos != -1) {
+      String key = part.substring(0, colonPos);
+      String value = part.substring(colonPos + 1);
+      
+      key.trim();
+      value.trim();
+      
+      if (key == "S1") {
+        s1 = value.toInt();
+      } else if (key == "S2") {
+        s2 = value.toInt();
+      } else if (key == "S3") {
+        s3 = value.toInt();
+      } else if (key == "S4") {
+        s4 = value.toInt();
+      } else if (key == "S5") {
+        s5 = value.toInt();
+      } else if (key == "S6") {
+        s6 = value.toInt();
+      } else if (key == "S7") {
+        s7 = value.toInt();
+      }
+    }
   }
   
-  // Extract values from JSON with proper mapping
-  leftLid = doc["left_lid"] | 50;
-  rightLid = doc["right_lid"] | 50;
-  leftEyeVertical = doc["left_baseline"] | 180;
-  rightEyeVertical = doc["right_baseline"] | 180;
-  headRotation = doc["rotation"] | 90;
-  
-  // Horizontal eye servos
-  if (doc.containsKey("left_eye_nose")) {
-    leftEyeHorizontal = doc["left_eye_nose"].as<float>();
-  }
-  if (doc.containsKey("right_eye_nose")) {
-    rightEyeHorizontal = doc["right_eye_nose"].as<float>();
-  }
+  // Map parsed values to servo variables
+  leftEyeHorizontal = s1;    // S1: Left eye horizontal
+  rightEyeHorizontal = s2;   // S2: Right eye horizontal
+  leftLid = s3;              // S3: Left eyelid
+  rightLid = s4;             // S4: Right eyelid
+  leftEyeVertical = s5;      // S5: Left eye vertical
+  rightEyeVertical = s6;     // S6: Right eye vertical
+  headRotation = s7;         // S7: Head rotation
   
   // Write to all 7 servos
-  servoLeftLid.write(leftLid);                    // Servo 1: Left eyelid
-  servoRightLid.write(rightLid);                  // Servo 2: Right eyelid
-  servoLeftEyeVertical.write(leftEyeVertical);    // Servo 3: Left eye vertical
-  servoRightEyeVertical.write(rightEyeVertical);  // Servo 4: Right eye vertical
   servoLeftEyeHorizontal.write(leftEyeHorizontal);  // Servo 5: Left eye horizontal
   servoRightEyeHorizontal.write(rightEyeHorizontal); // Servo 6: Right eye horizontal
-  servoHeadRotation.write(headRotation);          // Servo 7: Head rotation
+  servoLeftLid.write(leftLid);                      // Servo 1: Left eyelid
+  servoRightLid.write(rightLid);                    // Servo 2: Right eyelid
+  servoLeftEyeVertical.write(leftEyeVertical);      // Servo 3: Left eye vertical
+  servoRightEyeVertical.write(rightEyeVertical);    // Servo 4: Right eye vertical
+  servoHeadRotation.write(headRotation);            // Servo 7: Head rotation
   
   lastPacketTime = millis();
 }
@@ -155,8 +192,8 @@ void loop() {
         // Add character to buffer (ignore carriage return)
         serialBuffer += c;
         
-        // Prevent buffer overflow - increased to 300 for larger JSON
-        if (serialBuffer.length() > 300) {
+        // Prevent buffer overflow
+        if (serialBuffer.length() > 100) {
           serialBuffer = "";
         }
       }
