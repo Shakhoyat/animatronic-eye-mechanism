@@ -183,10 +183,10 @@ while cap.isOpened():
             
             # Map baseline distance to servo angles (90 to 270 degrees)
             left_baseline_servo_angle = map_range(left_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
-                                                  baseline_servo_min, baseline_servo_max)
+                                                  90, 270)
             right_baseline_servo_angle = map_range(right_iris_baseline_dist, baseline_dist_min, baseline_dist_max,
-                                                   baseline_servo_min, baseline_servo_max)
-            
+                                                   270, 90)
+
             # Horizontal distance from iris to fixed face center line
             face_center_x = FIXED_CENTER_X
             left_iris_center_dist = abs(left_iris[0] - face_center_x)
