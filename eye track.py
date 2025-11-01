@@ -213,14 +213,20 @@ while cap.isOpened():
             face_rotation_servo = map_range(smoothed_rotation_ratio, rotation_ratio_left_max, rotation_ratio_right_max,
                                            rotation_servo_min, rotation_servo_max)
             
-            # Apply smoothing to eye-nose distances (moved before JSON creation)
+            # Apply smoothing to eye-nose distances
             smoothed_left_eye_nose = smooth(smoothed_left_eye_nose, left_eye_nose)
             smoothed_right_eye_nose = smooth(smoothed_right_eye_nose, right_eye_nose)
             
+            # Map eye-nose distance to intermediate range first
+            left_eye_intermediate = map_range(smoothed_left_eye_nose, eye_nose_min, eye_nose_max,
+                                             left_eye_intermediate_min, left_eye_intermediate_max)
+            right_eye_intermediate = map_range(smoothed_right_eye_nose, eye_nose_min, eye_nose_max,
+                                              right_eye_intermediate_min, right_eye_intermediate_max)
+            
             # --- Map to servo values for the 7-servo system ---
-            # S1 & S2: Eye horizontal movement (using eye-nose distance)
-            s1_eye_left_lr = int(smoothed_left_eye_nose)
-            s2_eye_right_lr = int(smoothed_right_eye_nose)
+            # S1 & S2: Eye horizontal movement (using mapped intermediate values)
+            s1_eye_left_lr = int(left_eye_intermediate)
+            s2_eye_right_lr = int(right_eye_intermediate)
             
             # S3 & S4: Eyelids
             s3_eyelid_left = int(left_lid_mapped)
@@ -242,13 +248,7 @@ while cap.isOpened():
                 except Exception as e:
                     print(f"Error sending data: {e}")
 
-            # Map to intermediate range first (eye-nose distance to intermediate values)
-            left_eye_intermediate = map_range(smoothed_left_eye_nose, eye_nose_min, eye_nose_max,
-                                             left_eye_intermediate_min, left_eye_intermediate_max)
-            right_eye_intermediate = map_range(smoothed_right_eye_nose, eye_nose_min, eye_nose_max,
-                                              right_eye_intermediate_min, right_eye_intermediate_max)
-            
-            # Then map intermediate values to final servo range (40-70)
+            # For display: map intermediate values to final servo range for visualization
             left_eye_servo = map_range(left_eye_intermediate, left_eye_intermediate_min, left_eye_intermediate_max,
                                        left_eye_servo_min, left_eye_servo_max)
             right_eye_servo = map_range(right_eye_intermediate, right_eye_intermediate_min, right_eye_intermediate_max,
