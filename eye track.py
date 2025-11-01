@@ -30,14 +30,14 @@ lid_gap_min = 3
 lid_gap_max = 11
 
 # Eyeball intermediate mapping ranges (eye-nose distance to intermediate values)
-left_eye_intermediate_min = 165
-left_eye_intermediate_max = 20
-right_eye_intermediate_min = 20
-right_eye_intermediate_max = 165
+left_eye_intermediate_min = 110
+left_eye_intermediate_max = 90
+right_eye_intermediate_min = 95
+right_eye_intermediate_max = 110
 
 # Final servo output range (both eyes)
-left_eye_servo_min = 35
-left_eye_servo_max = 155
+left_eye_servo_min = 155
+left_eye_servo_max = 35
 right_eye_servo_min = 35
 right_eye_servo_max = 155
 
