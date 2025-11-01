@@ -94,7 +94,7 @@ void setup() {
 
   
   // LED on to indicate ready
-  digitalWrite(STATUS_LED, HIGH);
+  //digitalWrite(STATUS_LED, HIGH);
 }
 
 // Parse serial data format: JSON
@@ -138,7 +138,7 @@ void parseSerialData(String data) {
 
 void loop() {
   // USB Serial Mode - Read from Serial
-  digitalWrite(STATUS_LED, HIGH);
+  
   if (Serial.available()) {
     while (Serial.available()) {
       char c = Serial.read();
